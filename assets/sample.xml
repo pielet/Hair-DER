@@ -1,0 +1,41 @@
+<scene>
+	<camera dist="16.3217" radius="5.58237" fov="40">
+		<rotation x="-0.0390513" y="-0.0118025" z="-0.00346388" w="0.999161"/>
+		<center x="0.520191" y="-0.549706" z="0.848159"/>
+	</camera>
+	<description text="One Strand"/>
+	<duration time="4.0"/>
+	<simplegravity fy="-980.02" drippingmiddle="0" drippingnear="0"/>
+
+<StrandParameters> 
+    <radius value="0.0037" /> 
+    <youngsModulus value="1.9e10" /> 
+    <shearModulus value="7.1e9" /> 
+    <density value="1.32" /> 
+    <viscosity value="5e8" /> 
+    <baseRotation value="0.0"/>  
+    <accumulateWithViscous value="1" /> 
+    <accumulateViscousOnlyForBendingModes value="0" /> 
+</StrandParameters> 
+
+<Strand> 
+  <particle x="-3.99996 2.55276 -1.27384" v="0.0 0.0 0.0" fixed="1"/>
+  <particle x="-3.99996 2.55276 -1.02384" v="0.0 0.0 0.0" fixed="1"/>
+  <particle x="-3.94174 2.53822 -0.42112" v="0.0 0.0 0.0" />
+  <particle x="-3.94256 2.57025 -0.175401" v="0.0 0.0 0.0" />
+  <particle x="-3.95974 2.59729 0.0703173" v="0.0 0.0 0.0" />
+  <particle x="-3.9884 2.61164 0.316036" v="0.0 0.0 0.0" />
+  <particle x="-4.02034 2.60919 0.561754" v="0.0 0.0 0.0" />
+  <particle x="-4.04648 2.59065 0.807473" v="0.0 0.0 0.0" />
+  <particle x="-4.05934 2.56131 1.05319" v="0.0 0.0 0.0"/>
+  <particle x="-4.05527 2.52953 1.29891" v="0.0 0.0 0.0" />
+  <particle x="-4.03543 2.50437 1.54463" v="0.0 0.0 0.0" />
+  <particle x="-4.00547 2.49301 1.79035" v="0.0 0.0 0.0" />
+  <particle x="-3.97393 2.4987 2.03607" v="0.0 0.0 0.0" />
+  <particle x="-3.94982 2.5198 2.28178" v="0.0 0.0 0.0" />
+  <particle x="-3.94001 2.5503 2.5275" v="0.0 0.0 0.0" />
+  <particle x="-3.94729 2.5815 2.77322" v="0.0 0.0 0.0" />
+  <particle x="-3.96959 2.60451 3.01894" v="0.0 0.0 0.0" />
+</Strand>
+</scene>
+
