@@ -4,7 +4,7 @@
 
 Based on [libWetHair](https://github.com/nepluno/libWetHair)
 
-**Needed abraries:**
+**Needed labraries:**
 * GLEW
 * GLFW
 * glm
