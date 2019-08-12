@@ -18,9 +18,9 @@ const double dt = 0.04;
 const int max_iter = 50;
 const double criterion = 1e-8;
 
-const std::string filePath = "assets/sample.xml";
-const std::string vertexShader = "src/OpenGL/TransformVertexShader.vertexshader";
-const std::string fragmentShader = "src/OpenGL/ColorFragmentShader.fragmentshader";
+const std::string filePath = "Assets/sample.xml";
+const std::string vertexShader = "Shaders/TransformVertexShader.vertexshader";
+const std::string fragmentShader = "Shaders/ColorFragmentShader.fragmentshader";
 
 // Initialize scene
 ModelParameters* model;
@@ -48,7 +48,7 @@ int main(){
 	glfwWindowHint(GLFW_SAMPLES, 4);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-	// glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // To make MacOS happy; should not be needed
+	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // To make MacOS happy; should not be needed
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
 	// Open a window and create its OpenGL context
