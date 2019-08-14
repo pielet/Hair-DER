@@ -142,7 +142,7 @@ bool CompliantImplicitEuler::stepScene( Scene& scene, scalar dt, bool updatePreC
 	const int nconstraint_v = m_lambda_v.size();
 	
 	m_A_nz.erase( std::remove_if( m_A_nz.begin(), m_A_nz.end(), [&] ( const Triplets& t ) {
-		return scene.isFixed( scene.getVertFromDof( t.row() )) || scene.isFixed( scene.getVertFromDof(t.col()) ) || (t.value() == 0.0);
+		return scene.isFixed( scene.getVertFromDof( t.row() )) || scene.isFixed( scene.getVertFromDof( t.col()) ) || (t.value() == 0.0);
 	}), m_A_nz.end());
 	m_A.setFromTriplets( m_A_nz.begin(), m_A_nz.end() );
 	

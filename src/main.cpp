@@ -1,43 +1,83 @@
 #include <iostream>
+#include <thread>
+#include <chrono>
 
 // openGL
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <AntTweakBar.h>
 
-#include "OpenGL/Shader.h"
+#include "Shader.h"
 
 // simulation
 #include "ModelParameters.h"
 #include "Scene.h"
 #include "CompliantImplicitEuler.h"
+#include "GUI.h"
 
-// stepper parameters
-const double dt = 0.04;
-const int max_iter = 50;
-const double criterion = 1e-8;
+// file path
+const std::string filePath = "assets/sample.xml";
+const std::string vertexShader = "assets/TransformVertexShader.vertexshader";
+const std::string fragmentShader = "assets/ColorFragmentShader.fragmentshader";
 
-const std::string filePath = "Assets/sample.xml";
-const std::string vertexShader = "Shaders/TransformVertexShader.vertexshader";
-const std::string fragmentShader = "Shaders/ColorFragmentShader.fragmentshader";
-
-// Initialize scene
+// scene parameter
 ModelParameters* model;
 Scene* scene;
 CompliantImplicitEuler* stepper;
 
-int numStep;
-int numStrand, numParticle, numDof;
+int numStrand, numParticle, numDof, numStep;
+int currentStep = 0;
+double t = 0;
 
+// openGL data buffer
 GLdouble* g_Dof_buffer_data;
 
+// flag
+bool isPause = true;
+bool isSimulationEnd = false;
 bool isEnd = false;
 
-void keyCallback( GLFWwindow* window, int key, int scancode, int action, int mods);
+bool oneStep();
+void autoStep();
+
+// button callback function
+void TW_CALL resetParameterCB(void*);
+void TW_CALL startOrPauseCB(void* bar);
+void TW_CALL stepCB(void*);
+void TW_CALL exitCB(void*);
+
+// AntTweatBar: GLFW -> GLFW3
+inline void TwEventMouseButtonGLFW3(GLFWwindow* window, int button, int action, int mods)
+{ TwEventMouseButtonGLFW(button, action); }
+inline void TwEventMousePosGLFW3(GLFWwindow* window, double xpos, double ypos)
+{ TwMouseMotion(int(xpos), int(ypos)); }
+inline void TwEventMouseWheelGLFW3(GLFWwindow* window, double xoffset, double yoffset)
+{ TwEventMouseWheelGLFW(yoffset); }
+inline void TwEventKeyGLFW3(GLFWwindow* window, int key, int scancode, int action, int mods)
+{ TwEventKeyGLFW(key, action); }
+inline void TwEventCharGLFW3(GLFWwindow* window, int codepoint)
+{ TwEventCharGLFW(codepoint, GLFW_PRESS); }
+inline void TwWindowSizeGLFW3(GLFWwindow* window, int width, int height)
+{ TwWindowSize(width, height); }
+
 
 int main(){
-	// Initialise GLFW
+	/********************** Initialize scene ************************/
+    model = new ModelParameters(filePath);
+    scene = new Scene(*model);
+    stepper = new CompliantImplicitEuler(*scene, model->m_max_iters, model->m_criterion);
+
+    numStrand = scene->getNumStrand();
+    numParticle = scene->getNumParticle();
+    numDof = scene->getNumDofs();
+	numStep = int(model->m_duration / model->m_dt);
+
+    std::cout << "Strands: " << numStrand
+              << "\nTotal particle: " << numParticle << std::endl;
+
+	/********************** Initialize GLFW *************************/
 	if (!glfwInit())
 	{
 		std::cerr << "Failed to initialize GLFW\n";
@@ -60,9 +100,29 @@ int main(){
 		return -1;
 	}
 	glfwMakeContextCurrent( window );
-    glfwSetKeyCallback( window, keyCallback );
 
-	// Initialize GLEW
+	// Ensure we can capture the escape key being pressed below
+	glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_TRUE);
+
+	/*********************** Initialize AntTweakBar ********************/
+	TwInit(TW_OPENGL_CORE, NULL);
+	TwWindowSize(1024, 768);
+	GUI gui(model, &t);
+
+	// add button
+	TwAddButton(gui.m_bar, "reset", resetParameterCB, gui.m_bar, "key=r");
+	TwAddButton(gui.m_bar, "startOrPause", startOrPauseCB, gui.m_bar, "label='start' key=SPACE");
+	TwAddButton(gui.m_bar, "step", stepCB, gui.m_bar, "key=s");
+	TwAddButton(gui.m_bar, "quit", exitCB, gui.m_bar, "key=q");
+	
+	// Bind callback function
+    glfwSetKeyCallback( window, (GLFWkeyfun)TwEventKeyGLFW3 );
+	glfwSetMouseButtonCallback( window, (GLFWmousebuttonfun)TwEventMouseButtonGLFW3 );
+	glfwSetCharCallback( window, (GLFWcharfun)TwEventCharGLFW3 );
+	glfwSetCursorPosCallback( window, (GLFWcursorposfun)TwEventMousePosGLFW3 );
+	glfwSetScrollCallback( window, (GLFWscrollfun)TwEventMouseWheelGLFW3 );
+
+	/*********************** Initialize GLEW **************************/
 	glewExperimental = true; // Needed for core profile
 	if (glewInit() != GLEW_OK) {
 		std::cerr << "Failed to initialize GLEW\n";
@@ -70,9 +130,6 @@ int main(){
 		glfwTerminate();
 		return -1;
 	}
-
-	// Ensure we can capture the escape key being pressed below
-	glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_TRUE);
 
 	// Enable depth test
 	glEnable(GL_DEPTH_TEST);
@@ -90,25 +147,12 @@ int main(){
 
 	glm::mat4 Projection = glm::perspective(glm::radians(45.0f), 4.0f / 3.0f, 0.1f, 100.0f);
 	glm::mat4 View = glm::lookAt(
-		glm::vec3(50, 50, 50),    // Camera is at (4,3,-3), in World Space
-		glm::vec3(0, 0, 0),     // and looks at the origin
-		glm::vec3(0, 1, 0)      // Head is up (set to 0,-1,0 to look upside-down)
+		glm::vec3(0.5, 0.5, 0.5),    // Camera is at , in World Space
+		glm::vec3(0, 0, 0),     	// and looks at the origin
+		glm::vec3(0, 1, 0)      	// Head is up (set to 0,-1,0 to look upside-down)
 	);
 	glm::mat4 Model = glm::mat4(1.0f);
 	glm::mat4 MVP = Projection * View * Model;
-
-    // Initialize scene
-    model = new ModelParameters(filePath, dt);
-    scene = new Scene(*model);
-    stepper = new CompliantImplicitEuler(*scene, max_iter, criterion);
-
-    numStep = (int) model->m_duration / dt;
-    numStrand = scene->getNumStrand();
-    numParticle = scene->getNumParticle();
-    numDof = scene->getNumDofs();
-
-    std::cout << "Strands: " << numStrand
-              << "\nTotal particle: " << numParticle << std::endl;
     
     // Create data array
 	g_Dof_buffer_data = new GLdouble[numParticle * 3];
@@ -116,11 +160,14 @@ int main(){
         g_Dof_buffer_data[i] = model->m_strands(i);
     }
 
-    GLuint vertexbuffer;
+	GLuint vertexbuffer;
 	glGenBuffers(1, &vertexbuffer);
 	glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(GLdouble) * 3 * numParticle, g_Dof_buffer_data, GL_DYNAMIC_DRAW);
 
+	std::thread tid(autoStep);
+
+	/************************* Main loop ***************************/
 	while ( !isEnd && glfwWindowShouldClose(window) == 0 ) {
  		// Clear the screen
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -132,7 +179,7 @@ int main(){
 		// 1rst attribute buffer : vertices
 		glEnableVertexAttribArray(0);
 		glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(GLdouble) * 3 * numParticle, g_Dof_buffer_data, GL_DYNAMIC_DRAW);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(GLdouble) * 3 * numParticle, g_Dof_buffer_data, GL_DYNAMIC_DRAW);
 		glVertexAttribPointer(
 			0,                  // attribute. No particular reason for 0, but must match the layout in the shader.
 			3,                  // size
@@ -144,20 +191,25 @@ int main(){
 
 		// Draw the hair strand !
         for (int i = 0; i < numStrand; ++i) {
-            glDrawArrays(
+			glDrawArrays(
                 GL_LINE_STRIP, 
-                model->m_startIndex[i] * 3, 
-                ( model->m_startIndex[i + 1] - model->m_startIndex[i] ) * 3
+                model->m_startIndex[i], 
+                model->m_startIndex[i + 1] - model->m_startIndex[i]
             );
         }
 
 		glDisableVertexAttribArray(0);
+
+		TwDraw(); 
 
 		// Swap buffers
 		glfwSwapBuffers(window);
 		glfwPollEvents();
 
 	};
+
+	/************************** clear up and exit *************************/
+	isEnd = true;
 
     delete model;
     delete scene;
@@ -169,35 +221,95 @@ int main(){
 	glDeleteProgram(programID);
 	glDeleteVertexArrays(1, &VertexArrayID);
 
-	// Close OpenGL window and terminate GLFW
+	// Close OpenGL window and terminate GLFW nand AntTweakBar
+	TwDraw(); 
 	glfwTerminate();
+
+	tid.join();
 
     return 0;
 }
 
+bool oneStep() {
+	int i = 0, j = 0;
 
-void keyCallback( GLFWwindow* window, int key, int scancode, int action, int mods) {
-    static int currentStep = 0;
-    int i = 0, j = 0;
+	if (currentStep == numStep)
+		return true;
 
-    if (key == GLFW_KEY_S && action == GLFW_PRESS && currentStep < numStep) {
-        if (stepper->stepScene(*scene, dt)) {
-            stepper->accept(*scene, dt);
-            // update vertex array
-            for (int i = 0; i < numParticle; ++i) {
-                Vector3s cp = scene->getX().segment( scene->getDof(i), 3 );
-                for (j = 0;j < 3; ++j) {
-                    g_Dof_buffer_data[3 * i + j] = cp(j);
-                }
+	if (stepper->stepScene( *scene, model->m_dt )) {
+		stepper->accept( *scene, model->m_dt );
+
+		// update vertex array
+        for (int i = 0; i < numParticle; ++i) {
+            Vector3s cp = scene->getX().segment( scene->getDof(i), 3 );
+            for (j = 0;j < 3; ++j) {
+                g_Dof_buffer_data[3 * i + j] = cp(j);
             }
-            ++currentStep;
         }
-        else {
-            std::cerr << "Update fail at step " << currentStep;
-            isEnd = true;
-        }
-    } 
-    else if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
-        isEnd = true;
-    }
+
+        if (++currentStep == numStep)
+			isSimulationEnd = true;
+		t += model->m_dt;
+		
+		return true;
+
+	} else {
+		std::cerr << "Fail to update at step: " << currentStep;
+		return false;
+	}
+}
+
+void autoStep() {
+	while (!isEnd )
+	{
+		if (!isSimulationEnd && !isPause) {
+			if (!oneStep()) 
+				return;
+			std::this_thread::sleep_for(std::chrono::microseconds(int(model->m_dt * 1e6)));
+		}
+	}
+}
+
+void TW_CALL resetParameterCB(void*) {
+	if (isPause || isSimulationEnd) {
+		std::cout << "===================== reset ===================\n";
+
+		// update parameters
+		model->setStrandParameters();
+
+		delete scene;
+		delete stepper;
+
+		scene = new Scene(*model);
+		stepper = new CompliantImplicitEuler(*scene, model->m_max_iters, model->m_criterion);
+
+		// update data array
+		for (int i = 0; i < numParticle * 3; ++i) {
+			g_Dof_buffer_data[i] = model->m_strands(i);
+		}
+
+		// clear flags
+		t = 0;
+		currentStep = 0;
+		isPause = true;
+		isSimulationEnd = false;
+	}
+}
+
+void TW_CALL startOrPauseCB(void* bar) {
+	if (isPause) {
+		TwSetParam((TwBar*)bar, "startOrPause", "label", TW_PARAM_CSTRING, 1, "pause");
+		isPause = false;
+	} else {
+		TwSetParam((TwBar*)bar, "startOrPause", "label", TW_PARAM_CSTRING, 1, "start");
+		isPause = true;
+	}
+}
+
+void TW_CALL stepCB(void*) {
+	if (isPause) oneStep();
+}
+
+void TW_CALL exitCB(void*) {
+	isEnd = true;
 }

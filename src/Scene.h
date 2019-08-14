@@ -20,8 +20,9 @@ class Scene
     VectorXs m_edge_radii;
     VectorXs m_edge_to_hair;
 
-    std::vector<int> m_startDofsIndex;
+    std::vector<int> m_strandToDof;
     std::vector<int> m_vertToDof;
+    std::vector<int> m_DofToVert;
 
     Vector6i m_constraint_idx;
 

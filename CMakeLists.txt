@@ -11,8 +11,6 @@ macro (append_files files ext)
 endmacro (append_files)
 
 include_directories (
-	/usr/local/include
-	/usr/include
 	${PROJECT_SOURCE_DIR}/include/rapidxml
 	${PROJECT_SOURCE_DIR}/include
 	${PROJECT_SOURCE_DIR}/src/DER
@@ -60,30 +58,24 @@ else (GLM_FOUND)
 	message(SEND_ERROR "Unable to locate GLM, GLM_INCLUDE_DIRS=${GLM_INCLUDE_DIRS}")
 endif()
 
+find_package (ANTTWEAKBAR REQUIRED)
+if (ANTTWEAKBAR_FOUND)
+	include_directories( ${ANT_TWEAK_BAR_INCLUDE_DIR} )
+	set (LIBWETHAIR_LIBRARIES ${LIBWETHAIR_LIBRARIES} ${ANT_TWEAK_BAR_LIBRARY})  
+else (ANTTWEAKBAR_FOUND)
+	message (SEND_ERROR "Unable to locate ANTTWEAKBAR")
+endif (ANTTWEAKBAR_FOUND)
+
 set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -pthread")
 
-append_files (SRC_LIST "cpp" src src/DER src/DER/Dependencies src/DER/Forces src/OpenGL)
-list (REMOVE_ITEM SRC_LIST ./src/main.cpp)
-
-set (SHADER_FILES
-	${PROJECT_SOURCE_DIR}/src/OpenGL/TransformVertexShader.vertexshader
-	${PROJECT_SOURCE_DIR}/src/OpenGL/ColorFragmentShader.fragmentshader
-)
-
-set (ASSETS
-	${PROJECT_SOURCE_DIR}/assets/sample.xml
-)
+append_files (SRC_LIST "cpp" src src/DER src/DER/Dependencies src/DER/Forces)
+list (REMOVE_ITEM SRC_LIST ${PROJECT_SOURCE_DIR}/src/main.cpp)
 
 add_library (DER SHARED ${SRC_LIST})
 target_link_libraries(DER PUBLIC ${LIBWETHAIR_LIBRARIES} "-lpthread")
 
-add_executable (main ./src/main.cpp)
+add_executable (main ${PROJECT_SOURCE_DIR}/src/main.cpp)
 target_link_libraries (main PUBLIC DER)
 
-add_custom_command(
-	TARGET main
-	POST_BUILD
-	COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/Shaders ${CMAKE_BINARY_DIR}/Assets
-	COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SHADER_FILES} ${CMAKE_BINARY_DIR}/Shaders/
-	COMMAND ${CMAKE_COMMAND} -E copy_if_different ${ASSETS} ${CMAKE_BINARY_DIR}/Assets/
-)
+execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink ${CMAKE_SOURCE_DIR}/assets ${CMAKE_CURRENT_BINARY_DIR}//assets )
+

@@ -6,21 +6,25 @@ Scene::Scene( const ModelParameters& model ):
     m_model(model)
 {
     int idx = 0;
-    int i, j, numPartical;
+    int i, j, k, numPartical;
     for (i = 0; i < getNumStrand(); ++i) {
-        m_startDofsIndex.push_back( idx );
+        m_strandToDof.push_back( idx );
         numPartical = model.m_startIndex[i + 1] - model.m_startIndex[i];
         m_x.conservativeResize( m_x.size() + 4 * numPartical - 1);
         for (j = 0; j < numPartical; ++j) {
-            int global_j = model.m_startIndex[i] + j;
-            m_x.segment<3>(idx + 4 * j) = model.m_strands.segment<3>(3 * global_j);
-            if (j < numPartical - 1)
+            int global_vert = model.m_startIndex[i] + j;
+            m_x.segment<3>(idx + 4 * j) = model.m_strands.segment<3>(3 * global_vert);
+            for (k = 0; k < 3; ++k)
+                m_DofToVert.push_back( global_vert );
+            if (j < numPartical - 1) {
                 m_x[idx + 4*j + 3] = 0.0;
+                m_DofToVert.push_back( global_vert );
+            }
             m_vertToDof.push_back( idx + 4 * j);
         }
         idx += 4 * numPartical - 1;
     }
-    m_startDofsIndex.push_back( idx );
+    m_strandToDof.push_back( idx );
 
     resizeSystem();
     initForces();
@@ -111,7 +115,7 @@ int Scene::getParticleIndex( int strandIndex ) const {
 
 int Scene::getDofIndex( int strandIndex ) const {
     assert( strandIndex >= 0 && strandIndex < getNumStrand() );
-    return m_startDofsIndex[strandIndex];
+    return m_strandToDof[strandIndex];
 }
 
 int Scene::getDof( int vertIndex ) const {
@@ -121,12 +125,7 @@ int Scene::getDof( int vertIndex ) const {
 
 int Scene::getVertFromDof( int DofIndex ) const {
     assert( DofIndex >= 0 && DofIndex < m_x.size());
-
-    int i;
-    for (i = 0;i < getNumParticle(); ++i) {
-        if (DofIndex >= m_vertToDof[i] && DofIndex - m_vertToDof[i] < 4) return i;
-    }
-    return i;
+    return m_DofToVert[DofIndex];
 }
 
 int Scene::getComponent( int DofIndex ) const {
