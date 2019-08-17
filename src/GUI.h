@@ -14,7 +14,7 @@ struct GUI
 
         TwAddVarRO(m_bar, "name", TW_TYPE_STDSTRING, &(model->m_description), NULL);
 
-        TwAddVarRW(m_bar, "t", TW_TYPE_DOUBLE, t, "group=Simulation");
+        TwAddVarRO(m_bar, "t", TW_TYPE_DOUBLE, t, "group=Simulation");
         TwAddVarRW(m_bar, "dt", TW_TYPE_DOUBLE, &(model->m_dt), "group=Simulation");
         TwAddVarRW(m_bar, "duration", TW_TYPE_DOUBLE, &(model->m_duration), "group=Simulation");
         TwDefine(" Main/Simulation");

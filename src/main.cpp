@@ -18,7 +18,8 @@
 #include "GUI.h"
 
 // file path
-const std::string filePath = "assets/sample.xml";
+const std::string filePath = "assets/sample-1.xml";
+const std::string transPath = "assets/transform.dat";
 const std::string vertexShader = "assets/TransformVertexShader.vertexshader";
 const std::string fragmentShader = "assets/ColorFragmentShader.fragmentshader";
 
@@ -65,7 +66,7 @@ inline void TwWindowSizeGLFW3(GLFWwindow* window, int width, int height)
 
 int main(){
 	/********************** Initialize scene ************************/
-    model = new ModelParameters(filePath);
+    model = new ModelParameters(filePath, transPath);
     scene = new Scene(*model);
     stepper = new CompliantImplicitEuler(*scene, model->m_max_iters, model->m_criterion);
 
@@ -157,7 +158,7 @@ int main(){
     // Create data array
 	g_Dof_buffer_data = new GLdouble[numParticle * 3];
     for (int i = 0; i < numParticle * 3; ++i) {
-        g_Dof_buffer_data[i] = model->m_strands(i);
+        g_Dof_buffer_data[i] = model->m_rest_x(i);
     }
 
 	GLuint vertexbuffer;
@@ -250,6 +251,7 @@ bool oneStep() {
         if (++currentStep == numStep)
 			isSimulationEnd = true;
 		t += model->m_dt;
+		scene->applyRigidTransform( t );
 		
 		return true;
 
@@ -272,8 +274,6 @@ void autoStep() {
 
 void TW_CALL resetParameterCB(void*) {
 	if (isPause || isSimulationEnd) {
-		std::cout << "===================== reset ===================\n";
-
 		// update parameters
 		model->setStrandParameters();
 
@@ -285,7 +285,7 @@ void TW_CALL resetParameterCB(void*) {
 
 		// update data array
 		for (int i = 0; i < numParticle * 3; ++i) {
-			g_Dof_buffer_data[i] = model->m_strands(i);
+			g_Dof_buffer_data[i] = model->m_rest_x(i);
 		}
 
 		// clear flags
@@ -293,6 +293,8 @@ void TW_CALL resetParameterCB(void*) {
 		currentStep = 0;
 		isPause = true;
 		isSimulationEnd = false;
+
+		std::cout << "===================== reset ===================\n";
 	}
 }
 

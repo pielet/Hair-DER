@@ -13,7 +13,7 @@ Scene::Scene( const ModelParameters& model ):
         m_x.conservativeResize( m_x.size() + 4 * numPartical - 1);
         for (j = 0; j < numPartical; ++j) {
             int global_vert = model.m_startIndex[i] + j;
-            m_x.segment<3>(idx + 4 * j) = model.m_strands.segment<3>(3 * global_vert);
+            m_x.segment<3>(idx + 4 * j) = model.m_rest_x.segment<3>( 3 * global_vert );
             for (k = 0; k < 3; ++k)
                 m_DofToVert.push_back( global_vert );
             if (j < numPartical - 1) {
@@ -29,6 +29,8 @@ Scene::Scene( const ModelParameters& model ):
     resizeSystem();
     initForces();
     computeMassesAndRadiiFromStrands();
+
+    applyRigidTransform( model.m_dt );
 }
 
 Scene::~Scene() {
@@ -329,4 +331,15 @@ void Scene::storeLambda(const VectorXs& lambda, const VectorXs& lambda_v)
     threadutils::thread_pool::ParallelFor(0, nf, [&] (int i) {
         m_internal_forces[i]->storeLambda(lambda, lambda_v);
     });
+}
+
+void Scene::applyRigidTransform( double t ) {
+    Affine3s trans = m_model.getTransform( t );
+    std::cout << trans.matrix() << std::endl;
+
+    for (int i = 0; i < getNumParticle(); ++i) {
+        if (isFixed(i)) {
+            m_x.segment<3>( getDof(i) ) = trans * m_model.m_rest_x.segment<3>(3 * i);
+        }
+    }
 }

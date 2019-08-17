@@ -2,6 +2,7 @@
 #define __SCENE_H__
 
 #include <fstream>
+
 #include "rapidxml.hpp"
 #include "MathDefs.h"
 #include "ThreadUtils.h"
@@ -63,6 +64,8 @@ public:
     int getDof( int vertIndex ) const;
     int getVertFromDof( int DofIndex ) const;
     int getComponent( int DofIndex ) const;
+
+    void applyRigidTransform( double t );
 
     void computeMassesAndRadiiFromStrands();
 

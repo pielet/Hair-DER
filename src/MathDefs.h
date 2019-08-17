@@ -66,6 +66,8 @@ struct int_scalar {
   }
 };
 
+typedef Eigen::Affine3d Affine3s;
+typedef Eigen::Quaterniond Quaternions;
 
 typedef Eigen::Matrix<scalar, 2, 1> Vector2s;
 typedef Eigen::Matrix<float, 2, 1> Vector2f;

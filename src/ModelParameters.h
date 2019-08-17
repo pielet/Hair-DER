@@ -33,12 +33,15 @@ struct ModelParameters
 
     // unchanable parameters
     std::string m_description;
-    VectorXs m_strands;
+    VectorXs m_rest_x;
     std::vector<int> m_startIndex;
     std::vector<bool> m_isFixed;
+    std::vector<Affine3s> m_transform;
+    int m_nframe;
+    float m_timeInterval;
 
-    ModelParameters( const std::string& file_name ) {
-        std::ifstream fin( file_name );
+    ModelParameters( const std::string& xml_file, const std::string trans_file = "") {
+        std::ifstream fin( xml_file );
 
         if ( !fin.is_open() ){
             std::cerr << "Can NOT open xml file\n";
@@ -46,12 +49,11 @@ struct ModelParameters
         }
 
         // parse xml file
-        fin.seekg(0, std::ios::end);
-        int length = fin.tellg();
-        fin.seekg(0, std::ios::beg);
-        char* char_xml = new char[length + 1];
-        fin.read(char_xml, length);
-        char_xml[length] = '\0';
+        std::string buffer(std::istreambuf_iterator<char>(fin), {});
+        fin.close();
+        char* char_xml = new char[buffer.length() + 1];
+        buffer.copy(char_xml, buffer.length(), 0);
+        char_xml[buffer.length()] = '\0';
         rapidxml::xml_document<> doc;
         doc.parse<0>( char_xml );
         rapidxml::xml_node<>* scene = doc.first_node();
@@ -83,17 +85,17 @@ struct ModelParameters
 
         setStrandParameters();
 
-        // set m_strands(position),  m_startIndex and m_isFixed
+        // set m_rest_x(position),  m_startIndex and m_isFixed
         int idx = 0;
         double x, y, z;
-        // set m_strands
+        // set m_rest_x
         for (auto strand_node = scene->first_node("Strand"); strand_node; strand_node = strand_node->next_sibling()) {
             m_startIndex.push_back( idx );
             for (node = strand_node->first_node(); node; node = node->next_sibling()) {
                 std::istringstream oss( node->first_attribute()->value() );
                 oss >> x >> y >> z;
-                m_strands.conservativeResize( m_strands.size() + 3 );
-                m_strands.segment<3>( 3 * idx ) = Vec3(x, y, z);
+                m_rest_x.conservativeResize( m_rest_x.size() + 3 );
+                m_rest_x.segment<3>( 3 * idx ) = Vec3(x, y, z);
 
                 if (node->first_attribute("fixed")) 
                     m_isFixed.push_back(true);
@@ -106,7 +108,31 @@ struct ModelParameters
         m_startIndex.push_back(idx);
 
         delete [] char_xml;
-        fin.close();
+        
+        if (!trans_file.empty()) {
+            fin.open(trans_file, std::ios::binary);
+            if (!fin.is_open()) {
+                std::cerr << "Can NOT open transform matrix file\n";
+                return;
+            }
+
+            fin.read((char*)&m_nframe, sizeof(int));
+            fin.read((char*)&m_timeInterval, sizeof(float));
+
+            float mat_buffer[16];
+            Affine3s mat, inv_trans;
+
+            fin.read((char*)mat_buffer, sizeof(float) * 16);
+            inv_trans.matrix() = Eigen::Map<Matrix4f>(mat_buffer).transpose().cast<double>();
+            inv_trans = inv_trans.inverse();
+            m_transform.push_back(Affine3s::Identity());
+
+            for (int i = 1; i < m_nframe; ++i) {
+                fin.read((char*)mat_buffer, sizeof(float) * 16);
+                mat.matrix() = Eigen::Map<Matrix4f>(mat_buffer).transpose().cast<double>();
+                m_transform.push_back(mat * inv_trans);
+            }
+        }
     }
 
     ~ModelParameters() { if (m_strandParameters) delete m_strandParameters; }
@@ -142,6 +168,58 @@ struct ModelParameters
 
         m_gravity = Vector3s( m_gx, m_gy, m_gz );
     }
+
+    Affine3s getTransform( double t ) const {
+        if (t > m_timeInterval * (m_nframe - 1))
+            return Affine3s::Identity();
+        
+        int interval_idx = int(t / m_timeInterval);
+        float alpha = (t - m_timeInterval * interval_idx) / m_timeInterval;
+
+        return lerp(alpha, m_transform[interval_idx], m_transform[interval_idx + 1]);
+    }
+
+    inline void lerpDecompose(const Affine3s &aff, Vector3s &pos, Quaternions &rot, Vector3s &scale) const
+    {
+		Matrix3s rot_mat, scale_mat;
+		aff.computeRotationScaling(&rot_mat, &scale_mat);
+
+		pos = aff.translation();
+		rot = Quaternions(rot_mat);
+		scale = scale_mat.diagonal();
+	}
+
+	inline Affine3s lerpCompose(float alpha,
+		const Vector3s &pos0, const Quaternions &rot0, const Vector3s &scale0,
+		const Vector3s &pos1, const Quaternions &rot1, const Vector3s &scale1) const
+	{
+		float one_minus_alpha = 1.0f - alpha;
+
+		Affine3s result;
+		result.fromPositionOrientationScale(
+			one_minus_alpha * pos0 + alpha * pos1,
+			rot0.slerp(alpha, rot1),
+			one_minus_alpha * scale0 + alpha * scale1);
+
+		return result;
+	}
+
+	/*
+	* Lerp between to Affine3s to get the correct interpolation, All affine should not contain the shear
+	* components.
+	*/
+	inline Affine3s lerp(float alpha, const Affine3s &aff0, const Affine3s &aff1) const
+    {
+		Vector3s pos0; Quaternions rot0; Vector3s scale0;
+		Vector3s pos1; Quaternions rot1; Vector3s scale1;
+		lerpDecompose(aff0, pos0, rot0, scale0);
+		lerpDecompose(aff1, pos1, rot1, scale1);
+
+		if (rot0.dot(rot1) < 0.0f)
+			rot1 = Quaternions(-rot1.w(), -rot1.x(), -rot1.y(), -rot1.z());
+
+		return lerpCompose(alpha, pos0, rot0, scale0, pos1, rot1, scale1);
+	}
 };
 
 #endif
