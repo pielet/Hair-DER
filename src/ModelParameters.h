@@ -13,6 +13,7 @@ struct ModelParameters
     // changable parameters
     double m_duration;
     double m_dt;
+    int m_step;
     double m_gx;
     double m_gy;
     double m_gz;
@@ -167,6 +168,7 @@ struct ModelParameters
         );
 
         m_gravity = Vector3s( m_gx, m_gy, m_gz );
+        m_step = int(m_duration / m_dt);
     }
 
     Affine3s getTransform( double t ) const {
