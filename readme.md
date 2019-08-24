@@ -7,10 +7,12 @@ Based on [libWetHair](https://github.com/nepluno/libWetHair)
 **Needed labraries:**
 * GLEW
 * GLFW
-* glm
+* ~~glm~~
 * tbb
 * Eigen
 * rapidxml (already contained in include dir)
+* AntTweakBar
+* libpng++
 
 Modelify the include path in CMakeLists.txt, then 
 

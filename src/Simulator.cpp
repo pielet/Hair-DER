@@ -2,7 +2,8 @@
 
 Simulator::Simulator(const std::string& model_file, const std::string& trans_file) :
     m_model( model_file, trans_file ),
-    m_gui( m_model, &m_t )
+    m_camera( m_model.m_lookAt, m_model.m_eye, m_model.m_up ),
+    m_gui( &m_model, &m_t )
 {   
     m_scene = new Scene( m_model );
     m_stepper = new CompliantImplicitEuler( *m_scene, m_model.m_max_iters, m_model.m_criterion );
@@ -11,25 +12,39 @@ Simulator::Simulator(const std::string& model_file, const std::string& trans_fil
     m_numParticle = m_scene->getNumParticle();
     m_numDof = m_scene->getNumDofs();
 
+    // create inital data buffer
+    m_glBuffer = new GLfloat[m_numParticle * 3];
+    for (int i = 0; i < m_numParticle * 3; ++i) {
+        m_glBuffer[i] = m_model.m_rest_x(i);
+    }
+
     // add button to GUI
+    TwAddButton(m_gui.m_bar, "center", centerCameraCB, this, "key=c");
     TwAddButton(m_gui.m_bar, "reset", resetParameterCB, this, "key=r");
 	TwAddButton(m_gui.m_bar, "startOrPause", startOrPauseCB, this, "label='start' key=SPACE");
 	TwAddButton(m_gui.m_bar, "step", stepCB, this, "key=s");
 	TwAddButton(m_gui.m_bar, "quit", quitCB, this, "key=q");
 
-    // create inital data buffer
-    m_glBuffer = new GLdouble[m_numParticle * 3];
-    for (int i = 0; i < m_numParticle * 3; ++i) {
-        m_glBuffer[i] = m_model.m_rest_x(i);
-    }
+    // start autostep thread
+    m_autoStepTid = std::thread(std::bind(&Simulator::autoStep, this));
 }
 
 Simulator::~Simulator() {
+    m_isQuit = true;
+
+    if (m_oneStepTid.joinable()) m_oneStepTid.join();
+    m_autoStepTid.join();
+
     if (!m_glBuffer) 
         delete[] m_glBuffer;
     
     delete m_scene;
     delete m_stepper;
+}
+
+void TW_CALL Simulator::centerCameraCB( void* pThis ) {
+    Simulator* sim = (Simulator*) pThis;
+    (sim->m_camera).center();
 }
 
 void TW_CALL Simulator::resetParameterCB( void* pThis ) {
@@ -72,6 +87,7 @@ bool Simulator::oneStep() {
         if (++m_currentStep == m_model.m_step)
 			m_isSimulationEnd = true;
 		m_t += m_model.m_dt;
+        m_shouldSave = true;
 		m_scene->applyRigidTransform( m_t );
 		
 		return true;
@@ -119,6 +135,7 @@ void Simulator::resetParameter() {
 void Simulator::startOrPause() {
     if (m_isPause) {
 		TwSetParam(m_gui.m_bar, "startOrPause", "label", TW_PARAM_CSTRING, 1, "pause");
+        if (m_oneStepTid.joinable()) m_oneStepTid.join();
 		m_isPause = false;
 	} else {
 		TwSetParam(m_gui.m_bar, "startOrPause", "label", TW_PARAM_CSTRING, 1, "start");
@@ -127,5 +144,8 @@ void Simulator::startOrPause() {
 }
 
 void Simulator::step() {
-    if (m_isPause) oneStep();
+    if (m_isPause) {
+        if (m_oneStepTid.joinable()) m_oneStepTid.join();
+        m_oneStepTid = std::thread(std::bind(&Simulator::oneStep, this));
+    }
 }

@@ -41,6 +41,10 @@ struct ModelParameters
     int m_nframe;
     float m_timeInterval;
 
+    Vector3s m_lookAt;
+    Vector3s m_eye;
+    Vector3s m_up;
+
     ModelParameters( const std::string& xml_file, const std::string trans_file = "") {
         std::ifstream fin( xml_file );
 
@@ -68,6 +72,12 @@ struct ModelParameters
         m_gravity(1) = m_gy = getDoubleNodeValue( scene->first_node( "simplegravity" ), "fy" );
         m_gravity(2) = m_gz = getDoubleNodeValue( scene->first_node( "simplegravity" ), "fz" );
 
+        // set camera parameters
+        rapidxml::xml_node<>* camera = scene->first_node( "camera" );
+        m_lookAt = getVector( camera, "lookat" );
+        m_eye = getVector( camera, "position" );
+        m_up = getVector( camera, "up" );
+
         // set stepper paratemers
         rapidxml::xml_node<>* node = scene->first_node( "StepperParameters" );
         m_max_iters = (int) getDoubleNodeValue( node->first_node( "max_iters" ));
@@ -88,15 +98,12 @@ struct ModelParameters
 
         // set m_rest_x(position),  m_startIndex and m_isFixed
         int idx = 0;
-        double x, y, z;
         // set m_rest_x
         for (auto strand_node = scene->first_node("Strand"); strand_node; strand_node = strand_node->next_sibling()) {
             m_startIndex.push_back( idx );
             for (node = strand_node->first_node(); node; node = node->next_sibling()) {
-                std::istringstream oss( node->first_attribute()->value() );
-                oss >> x >> y >> z;
                 m_rest_x.conservativeResize( m_rest_x.size() + 3 );
-                m_rest_x.segment<3>( 3 * idx ) = Vec3(x, y, z);
+                m_rest_x.segment<3>( 3 * idx ) = getVector(node, "x");
 
                 if (node->first_attribute("fixed")) 
                     m_isFixed.push_back(true);
@@ -149,6 +156,13 @@ struct ModelParameters
         return strcmp( node->first_attribute()->value() , other );
     }
 
+    Vector3s getVector( const rapidxml::xml_node<>* node, const char* attr_name ) const {
+        double x, y, z;
+        std::istringstream oss( node->first_attribute(attr_name)->value() );
+        oss >> x >> y >> z;
+        return Vector3s(x, y, z);
+    }
+
     int getNumStrand() const { return m_startIndex.size() - 1; }
 
     void setStrandParameters () {
@@ -173,7 +187,7 @@ struct ModelParameters
 
     Affine3s getTransform( double t ) const {
         if (t > m_timeInterval * (m_nframe - 1))
-            return Affine3s::Identity();
+            return m_transform[m_nframe - 1];
         
         int interval_idx = int(t / m_timeInterval);
         float alpha = (t - m_timeInterval * interval_idx) / m_timeInterval;

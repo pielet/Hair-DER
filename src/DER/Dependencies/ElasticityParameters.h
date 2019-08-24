@@ -47,7 +47,7 @@
 
 
 /**
- * Unit: cm
+ * Unit: cm -> m
  */
 class PhysicalRadius: public DependencyNode< scalar >
 {
@@ -102,7 +102,7 @@ protected:
  * \brief This contains the bending matrix base, must be multiplied by the appropriate viscous or non-viscous
  * coefficient (with optional interpolation factor).
  *
- * Unit: cm^4
+ * Unit: cm^4 -> m^4
  */
 class BendingMatrixBase: public DependencyNode<Mat2>
 {
@@ -147,7 +147,7 @@ protected:
 };
 
 /**
- * Unit: dPa = g cm^-1 s^-2
+ * Unit: dPa = g cm^-1 s^-2 -> Pa = kg m^-1 s^-2
  */
 class YoungsModulus: public DependencyNode<scalar>
 {
@@ -169,7 +169,7 @@ protected:
 };
 
 /**
- * Unit: dPa = g cm^-1 s^-2
+ * Unit: dPa = g cm^-1 s^-2 -> Pa = kg m^-1 s^-2
  */
 class ShearModulus: public DependencyNode<scalar>
 {
@@ -191,7 +191,7 @@ protected:
 };
 
 /**
- * Unit: 10^-5 N = g cm s^-2
+ * Unit: 10^-5 N = g cm s^-2 -> N = kg m s^-2
  */
 class ElasticKs: public DependencyNode<scalar>
 {
@@ -226,7 +226,7 @@ protected:
 };
 
 /**
- * Unit: 10^-5 cm^2 N = g cm^3 s^-2
+ * Unit: 10^-5 cm^2 N = g cm^3 s^-2 -> m^2 N
  */
 class ElasticKt: public DependencyNode<scalar>
 {
