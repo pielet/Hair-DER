@@ -188,7 +188,7 @@ struct ModelParameters
     Affine3s getTransform( double t ) const {
         if (t > m_timeInterval * (m_nframe - 1))
             return m_transform[m_nframe - 1];
-        
+
         int interval_idx = int(t / m_timeInterval);
         float alpha = (t - m_timeInterval * interval_idx) / m_timeInterval;
 
