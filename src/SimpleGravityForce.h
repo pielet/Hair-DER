@@ -43,16 +43,18 @@
 #define __SIMPLE_GRAVITY_FORCE_H__
 
 #include <Eigen/Core>
-#include "Force.h"
 #include <iostream>
-#include "Scene.h"
+
+#include "Force.h"
+#include "SceneStepper.h"
+
 
 class SimpleGravityForce : public Force
 {
-	Scene* m_scene;
+	SceneStepper *m_stepper;
 public:
 
-	SimpleGravityForce( const Vector3s& gravity, Scene* scene );
+	SimpleGravityForce( const Vector3s& gravity, SceneStepper *stepper );
 
 	virtual ~SimpleGravityForce();
 	
@@ -93,10 +95,6 @@ public:
 	virtual const char* name();
 	
 	static const char* static_name();
-
-	virtual void getAffectedVars( int pidx, std::unordered_set<int>& vars );
-	
-	virtual bool isContained( int pidx );
 	
 	virtual bool isExternal();
 	

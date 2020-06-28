@@ -76,9 +76,9 @@ public:
   virtual void addHessVToTotal( const VectorXs& x, const VectorXs& v, const VectorXs& m, VectorXs& hessE, int pidx ) {}
   
   virtual void computeIntegrationVars( const VectorXs& x, const VectorXs& v, const VectorXs& m,
-                                VectorXs& lambda, VectorXs& lambda_v,
-                                TripletXs& J, TripletXs& Jv, TripletXs& Jxv, TripletXs& tildeK,
-                                TripletXs& stiffness, TripletXs& damping, VectorXs& Phi, VectorXs& Phiv, const scalar& dt) {}
+                                VectorXs& lambda,
+                                TripletXs& J, TripletXs& tildeK,
+                                TripletXs& stiffness, VectorXs& Phi, const scalar& dt) {}
   
   virtual int numConstraintPos() = 0;
   
@@ -96,7 +96,7 @@ public:
   
   virtual bool isPrecomputationParallelized() = 0;
   
-  virtual void storeLambda(const VectorXs& lambda, const VectorXs& lambda_v);
+  virtual void storeLambda(const VectorXs& lambda);
   
   virtual void setInternalIndex(
                                 int index_pos,
@@ -110,11 +110,11 @@ public:
   
   virtual const char* name() = 0;
   
-  virtual void getAffectedVars( int pidx, std::unordered_set<int>& vars ) = 0;
+  virtual void getAffectedVars(int pidx, std::unordered_set<int>& vars) {}
   
   virtual int getAffectedHair();
   
-  virtual bool isContained( int pidx ) = 0;
+  virtual bool isContained(int pidx) { return false; }
   
   virtual bool isExternal();
   

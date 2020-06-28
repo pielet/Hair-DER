@@ -42,6 +42,15 @@
 #ifndef _DER_DEFINITIONS_H_
 #define _DER_DEFINITIONS_H_
 
+#ifdef WIN32
+	#define _USE_MATH_DEFINES
+#endif
+#include <cmath>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846264338
+#endif
+
 #include <iostream>
 #include <stdint.h>
 
@@ -71,7 +80,7 @@ namespace Eigen
 }
 
 typedef double scalar; ///< the scalar type
-typedef uint16_t IndexType; ///< large unsigned int for IDs
+typedef size_t IndexType; ///< large unsigned int for IDs
 
 typedef Eigen::Matrix<scalar, 2, 1> Vec2; ///< 2d scalar vector
 typedef Eigen::Matrix<scalar, 3, 1> Vec3; ///< 3d scalar vector
@@ -101,7 +110,7 @@ scalarT EIGEN_STRONG_INLINE SMALL_NUMBER()
 template<>
 float EIGEN_STRONG_INLINE SMALL_NUMBER<float>()
 {
-    return 1e-6;
+    return 1e-6f;
 }
 
 template<>

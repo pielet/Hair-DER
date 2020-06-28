@@ -5,17 +5,25 @@ Simulator::Simulator(const std::string& model_file, const std::string& trans_fil
     m_camera( m_model.m_lookAt, m_model.m_eye, m_model.m_up ),
     m_gui( &m_model, &m_t )
 {   
-    m_scene = new Scene( m_model );
-    m_stepper = new CompliantImplicitEuler( *m_scene, m_model.m_max_iters, m_model.m_criterion );
+	switch (m_model.m_stepper_type)
+	{
+	case StepperType::DER:
+		m_stepper = new CompliantImplicitEuler(m_model); break;
+	case StepperType::POBD:
+		m_stepper = new PositionOrientation(m_model); break;
+	default:
+		std::cerr << "Wrong Stepper Type!";
+		break;
+	}
 
-    m_numStrand = m_scene->getNumStrand();
-    m_numParticle = m_scene->getNumParticle();
-    m_numDof = m_scene->getNumDofs();
+	m_numStrand = m_stepper->getStrandNum();
+	m_numParticle = m_stepper->getVertNum();
+	m_numDof = 4 * m_numParticle - m_numStrand;
 
     // create inital data buffer
     m_glBuffer = new GLfloat[m_numParticle * 3];
     for (int i = 0; i < m_numParticle * 3; ++i) {
-        m_glBuffer[i] = m_model.m_rest_x(i);
+        m_glBuffer[i] = m_stepper->getNextX()[i];
     }
 
     // add button to GUI
@@ -38,7 +46,6 @@ Simulator::~Simulator() {
     if (!m_glBuffer) 
         delete[] m_glBuffer;
     
-    delete m_scene;
     delete m_stepper;
 }
 
@@ -73,22 +80,25 @@ bool Simulator::oneStep() {
 	if (m_currentStep == m_model.m_step)
 		return true;
 
-	if (m_stepper->stepScene( *m_scene, m_model.m_dt )) {
-		m_stepper->accept( *m_scene, m_model.m_dt );
+	if (m_stepper->stepScene()) {
+		/*
+		std::vector<scalar> total_time = m_stepper->getTimingStatistics();
+		for (int i = 0; i < total_time.size(); ++i)
+			std::cout << total_time[i] / (m_currentStep + 1) << '\t';
+		std::cout << '\n';
+		*/
 
 		// update vertex array
-        for (int i = 0; i < m_numParticle; ++i) {
-            Vector3s cp = m_scene->getX().segment<3>( m_scene->getDof(i) );
-            for (j = 0;j < 3; ++j) {
-                m_glBuffer[3 * i + j] = cp(j);
-            }
+		VectorXs next_x = m_stepper->getNextX();
+        for (int i = 0; i < m_numParticle * 3; ++i) {
+			m_glBuffer[i] = next_x(i);
         }
 
         if (++m_currentStep == m_model.m_step)
 			m_isSimulationEnd = true;
 		m_t += m_model.m_dt;
         m_shouldSave = true;
-		m_scene->applyRigidTransform( m_t );
+		m_stepper->applyRigidTransform( m_t );
 		
 		return true;
 
@@ -104,7 +114,7 @@ void Simulator::autoStep() {
 	{
 		if (!m_isSimulationEnd && !m_isPause) {
 			oneStep();
-			// std::this_thread::sleep_for(std::chrono::microseconds(int(m_model.m_dt * 1e6)));
+			std::this_thread::sleep_for(std::chrono::microseconds(int(m_model.m_dt * 1e6)));
 		}
 	}
 }
@@ -114,13 +124,21 @@ void Simulator::resetParameter() {
 		// update parameters
 		m_model.setStrandParameters();
         
-        delete m_scene; delete m_stepper;
-        m_scene = new Scene(m_model);
-        m_stepper = new CompliantImplicitEuler(*m_scene, m_model.m_max_iters, m_model.m_criterion);
+        delete m_stepper;
+		switch (m_model.m_stepper_type)
+		{
+		case StepperType::DER:
+			m_stepper = new CompliantImplicitEuler(m_model); break;
+		case StepperType::POBD:
+			m_stepper = new PositionOrientation(m_model); break;
+		default:
+			std::cerr << "Wrong Stepper Type!";
+			break;
+		}
 
 		// update data array
 		for (int i = 0; i < m_numParticle * 3; ++i) {
-			m_glBuffer[i] = m_model.m_rest_x(i);
+			m_glBuffer[i] = m_stepper->getNextX()[i];
 		}
 
 		// clear flags

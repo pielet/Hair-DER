@@ -10,17 +10,16 @@
 #include <AntTweakBar.h>
 
 #include "ModelParameters.h"
-#include "Camera.h"
-#include "Scene.h"
 #include "CompliantImplicitEuler.h"
+#include "PositionOrientationDynamics.h"
+#include "Camera.h"
 #include "GUI.h"
 
 class Simulator
 {
     ModelParameters m_model;
     Camera m_camera;
-    Scene* m_scene;
-    CompliantImplicitEuler* m_stepper;
+    SceneStepper* m_stepper;
     GUI m_gui;
 
     // simulation parameter

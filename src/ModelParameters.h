@@ -3,41 +3,49 @@
 
 #include <fstream>
 #include <sstream>
+#include <string>
 #include "rapidxml.hpp"
 
 #include "MathDefs.h"
 #include "StrandParameters.h"
 
+enum StepperType { DER, POBD };
+
 struct ModelParameters
 {
     // changable parameters
-    double m_duration;
-    double m_dt;
+    scalar m_duration;
+    scalar m_dt;
     int m_step;
-    double m_gx;
-    double m_gy;
-    double m_gz;
+    scalar m_gx;
+    scalar m_gy;
+    scalar m_gz;
     Vector3s m_gravity;
 
+	StepperType m_stepper_type;
     int m_max_iters;
-    double m_criterion;
+    scalar m_criterion;
 
-    double m_radius;
-    double m_youngModulus;
-    double m_shearModulus;
-    double m_density;
-    double m_viscosity;
-    double m_baseRotation;
+	scalar m_friction;
+    scalar m_radius;
+    scalar m_youngModulus;
+    scalar m_shearModulus;
+    scalar m_density;
+    scalar m_viscosity;
+    scalar m_baseRotation;
     bool m_accumulateWithViscous;
     bool m_accumulateViscousOnlyForBendingModes;
+
     StrandParameters* m_strandParameters = NULL;
 
     // unchanable parameters
     std::string m_description;
     VectorXs m_rest_x;
+	VectorXs m_init_v;
     std::vector<int> m_startIndex;
     std::vector<bool> m_isFixed;
     std::vector<Affine3s> m_transform;
+
     int m_nframe;
     float m_timeInterval;
 
@@ -66,11 +74,11 @@ struct ModelParameters
         // set model parameters
         auto des = scene->first_node( "description" );
         m_description = scene->first_node( "description" )->first_attribute()->value();
-        m_duration = getDoubleNodeValue( scene->first_node( "duration" ) );
-        m_dt = getDoubleNodeValue( scene->first_node( "dt" ));
-        m_gravity(0) = m_gx = getDoubleNodeValue( scene->first_node( "simplegravity" ), "fx" );
-        m_gravity(1) = m_gy = getDoubleNodeValue( scene->first_node( "simplegravity" ), "fy" );
-        m_gravity(2) = m_gz = getDoubleNodeValue( scene->first_node( "simplegravity" ), "fz" );
+        m_duration = getscalarNodeValue( scene->first_node( "duration" ) );
+        m_dt = getscalarNodeValue( scene->first_node( "dt" ));
+        m_gravity(0) = m_gx = getscalarNodeValue( scene->first_node( "simplegravity" ), "fx" );
+        m_gravity(1) = m_gy = getscalarNodeValue( scene->first_node( "simplegravity" ), "fy" );
+        m_gravity(2) = m_gz = getscalarNodeValue( scene->first_node( "simplegravity" ), "fz" );
 
         // set camera parameters
         rapidxml::xml_node<>* camera = scene->first_node( "camera" );
@@ -79,22 +87,27 @@ struct ModelParameters
         m_up = getVector( camera, "up" );
 
         // set stepper paratemers
-        rapidxml::xml_node<>* node = scene->first_node( "StepperParameters" );
-        m_max_iters = (int) getDoubleNodeValue( node->first_node( "max_iters" ));
-        m_criterion = getDoubleNodeValue( node->first_node( "criterion" ) );
+		rapidxml::xml_node<>* node = nullptr;
+		if (node = scene->first_node("StepperParameters")) {
+			m_stepper_type = StepperType(std::stoi(node->first_attribute("type")->value()));
+			m_max_iters = (int)getscalarNodeValue(node->first_node("max_iters"));
+			m_criterion = getscalarNodeValue(node->first_node("criterion"));
+		}
 
         // set strand paratemers
-        node = scene->first_node( "StrandParameters" );
-        m_radius = getDoubleNodeValue( node->first_node( "radius") );
-        m_youngModulus = getDoubleNodeValue( node->first_node( "youngsModulus" ) );
-        m_shearModulus = getDoubleNodeValue( node->first_node( "shearModulus" ) );
-        m_density = getDoubleNodeValue( node->first_node( "density" ) );
-        m_viscosity = getDoubleNodeValue( node->first_node( "viscosity" ) );
-        m_baseRotation = getDoubleNodeValue( node->first_node( "baseRotation" ) );
-        m_accumulateWithViscous = compareString( node->first_node( "accumulateWithViscous" ), "1");
-        m_accumulateViscousOnlyForBendingModes = compareString( node->first_node( "accumulateViscousOnlyForBendingModes" ), "1");
+		if (node = scene->first_node("StrandParameters")) {
+			m_friction = getscalarNodeValue(node->first_node("frictionCoefficient"));
+			m_radius = getscalarNodeValue(node->first_node("radius"));
+			m_youngModulus = getscalarNodeValue(node->first_node("youngsModulus"));
+			m_shearModulus = getscalarNodeValue(node->first_node("shearModulus"));
+			m_density = getscalarNodeValue(node->first_node("density"));
+			m_viscosity = getscalarNodeValue(node->first_node("viscosity"));
+			m_baseRotation = getscalarNodeValue(node->first_node("baseRotation"));
+			m_accumulateWithViscous = compareString(node->first_node("accumulateWithViscous"), "1");
+			m_accumulateViscousOnlyForBendingModes = compareString(node->first_node("accumulateViscousOnlyForBendingModes"), "1");
 
-        setStrandParameters();
+			setStrandParameters();
+		}
 
         // set m_rest_x(position),  m_startIndex and m_isFixed
         int idx = 0;
@@ -104,6 +117,9 @@ struct ModelParameters
             for (node = strand_node->first_node(); node; node = node->next_sibling()) {
                 m_rest_x.conservativeResize( m_rest_x.size() + 3 );
                 m_rest_x.segment<3>( 3 * idx ) = getVector(node, "x");
+
+				m_init_v.conservativeResize(m_rest_x.size());
+				m_init_v.segment<3>(3 * idx) = getVector(node, "v");
 
                 if (node->first_attribute("fixed")) 
                     m_isFixed.push_back(true);
@@ -131,13 +147,13 @@ struct ModelParameters
             Affine3s mat, inv_trans;
 
             fin.read((char*)mat_buffer, sizeof(float) * 16);
-            inv_trans.matrix() = Eigen::Map<Matrix4f>(mat_buffer).transpose().cast<double>();
+            inv_trans.matrix() = Eigen::Map<Matrix4f>(mat_buffer).transpose().cast<scalar>();
             inv_trans = inv_trans.inverse();
             m_transform.push_back(Affine3s::Identity());
 
             for (int i = 1; i < m_nframe; ++i) {
                 fin.read((char*)mat_buffer, sizeof(float) * 16);
-                mat.matrix() = Eigen::Map<Matrix4f>(mat_buffer).transpose().cast<double>();
+                mat.matrix() = Eigen::Map<Matrix4f>(mat_buffer).transpose().cast<scalar>();
                 m_transform.push_back(mat * inv_trans);
             }
         }
@@ -145,7 +161,7 @@ struct ModelParameters
 
     ~ModelParameters() { if (m_strandParameters) delete m_strandParameters; }
 
-    double getDoubleNodeValue( const rapidxml::xml_node<>* node, const char* attrName = 0 ) const {
+    scalar getscalarNodeValue( const rapidxml::xml_node<>* node, const char* attrName = 0 ) const {
         if (attrName) 
             return atof( node->first_attribute( attrName )->value() );
         else
@@ -157,7 +173,7 @@ struct ModelParameters
     }
 
     Vector3s getVector( const rapidxml::xml_node<>* node, const char* attr_name ) const {
-        double x, y, z;
+        scalar x, y, z;
         std::istringstream oss( node->first_attribute(attr_name)->value() );
         oss >> x >> y >> z;
         return Vector3s(x, y, z);
@@ -185,12 +201,12 @@ struct ModelParameters
         m_step = int(m_duration / m_dt);
     }
 
-    Affine3s getTransform( double t ) const {
+    Affine3s getTransform( scalar t ) const {
         if (t > m_timeInterval * (m_nframe - 1))
             return m_transform[m_nframe - 1];
 
         int interval_idx = int(t / m_timeInterval);
-        float alpha = (t - m_timeInterval * interval_idx) / m_timeInterval;
+        scalar alpha = (t - m_timeInterval * interval_idx) / m_timeInterval;
 
         return lerp(alpha, m_transform[interval_idx], m_transform[interval_idx + 1]);
     }
@@ -205,11 +221,11 @@ struct ModelParameters
 		scale = scale_mat.diagonal();
 	}
 
-	inline Affine3s lerpCompose(float alpha,
+	inline Affine3s lerpCompose(scalar alpha,
 		const Vector3s &pos0, const Quaternions &rot0, const Vector3s &scale0,
 		const Vector3s &pos1, const Quaternions &rot1, const Vector3s &scale1) const
 	{
-		float one_minus_alpha = 1.0f - alpha;
+		scalar one_minus_alpha = 1.0f - alpha;
 
 		Affine3s result;
 		result.fromPositionOrientationScale(
@@ -224,7 +240,7 @@ struct ModelParameters
 	* Lerp between to Affine3s to get the correct interpolation, All affine should not contain the shear
 	* components.
 	*/
-	inline Affine3s lerp(float alpha, const Affine3s &aff0, const Affine3s &aff1) const
+	inline Affine3s lerp(scalar alpha, const Affine3s &aff0, const Affine3s &aff1) const
     {
 		Vector3s pos0; Quaternions rot0; Vector3s scale0;
 		Vector3s pos1; Quaternions rot1; Vector3s scale1;

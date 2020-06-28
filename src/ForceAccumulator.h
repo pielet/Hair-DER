@@ -42,8 +42,8 @@
 #ifndef FORCEACCUMULATOR_H_
 #define FORCEACCUMULATOR_H_
 
-#include "../Definitions.h"
-#include "../StrandForce.h"
+#include "StrandMathDef.h"
+#include "StrandForce.h"
 
 template<typename ForceT> class ForceAccumulator
 {

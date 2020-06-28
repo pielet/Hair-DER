@@ -44,10 +44,10 @@
 
 const static char* simplegravityname = "simplegravity";
 
-SimpleGravityForce::SimpleGravityForce( const Vector3s& gravity, Scene* s )
+SimpleGravityForce::SimpleGravityForce( const Vector3s& gravity, SceneStepper* stepper )
 : Force()
 , m_gravity(gravity)
-, m_scene(s)
+, m_stepper(stepper)
 {
 	assert( (m_gravity.array() == m_gravity.array()).all() );
 	assert( (m_gravity.array() != std::numeric_limits<scalar>::infinity()).all() );
@@ -81,8 +81,8 @@ void SimpleGravityForce::addEnergyToTotal( const VectorXs& x, const VectorXs& v,
 	VectorXs g = m_gravity;
 	
 	// Assume 0 potential is at origin
-	for( int i = 0; i < m_scene->getNumParticle(); ++i ){
-		E -= m( m_scene->getDof(i) ) * g.segment<3>(0).dot( x.segment<3>( m_scene->getDof(i) ) );
+	for( int i = 0; i < m_stepper->getVertNum(); ++i ){
+		E -= m( m_stepper->getDof(i) ) * g.segment<3>(0).dot( x.segment<3>( m_stepper->getDof(i) ) );
 	} 
 }
 
@@ -92,12 +92,12 @@ void SimpleGravityForce::addGradEToTotal( const VectorXs& x, const VectorXs& v, 
 	assert( x.size() == m.size() );
 	assert( x.size() == gradE.size() );
 	
-	const int np = m_scene->getNumParticle();
+	const int np = m_stepper->getVertNum();
 	
 	VectorXs g = m_gravity;
 	
 	tbb::parallel_for(0, np, 1, [&] (int i) {
-		gradE.segment<3>( m_scene->getDof(i) ) -= m( m_scene->getDof(i) ) * g.segment<3>(0);
+		gradE.segment<3>( m_stepper->getDof(i) ) -= m( m_stepper->getDof(i) ) * g.segment<3>(0);
 	});
 }
 
@@ -188,20 +188,6 @@ const char* SimpleGravityForce::static_name()
 Force* SimpleGravityForce::createNewCopy()
 {
 	return new SimpleGravityForce(*this);
-}
-
-
-void SimpleGravityForce::getAffectedVars( int pidx, std::unordered_set<int>& vars )
-{
-	if( m_scene->getComponent( pidx ) < 3 ){
-		vars.insert(pidx);
-	}
-}
-
-bool SimpleGravityForce::isContained( int pidx )
-{
-	if( m_scene->getComponent(pidx) == 3 ) return false;
-	return true;
 }
 
 

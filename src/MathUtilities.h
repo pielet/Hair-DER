@@ -1,61 +1,19 @@
-//
-// This file is part of the libWetHair open source project
-//
-// The code is licensed solely for academic and non-commercial use under the
-// terms of the Clear BSD License. The terms of the Clear BSD License are
-// provided below. Other licenses may be obtained by contacting the faculty
-// of the Columbia Computer Graphics Group or a Columbia University licensing officer.
-//
-// The Clear BSD License
-//
-// Copyright 2017 Yun (Raymond) Fei, Henrique Teles Maia, Christopher Batty,
-// Changxi Zheng, and Eitan Grinspun
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted (subject to the limitations in the disclaimer
-// below) provided that the following conditions are met:
-//
-// * Redistributions of source code must retain the above copyright notice, this
-//  list of conditions and the following disclaimer.
-//
-// * Redistributions in binary form must reproduce the above copyright notice,
-//  this list of conditions and the following disclaimer in the documentation
-//  and/or other materials provided with the distribution.
-//
-// * Neither the name of the copyright holder nor the names of its contributors may be used
-//  to endorse or promote products derived from this software without specific
-//  prior written permission.
-//
-// NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE GRANTED BY THIS
-// LICENSE. THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
-// THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
-// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
-// GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
-// HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-// LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
-// OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
-// DAMAGE.
-
 #ifndef __MATH_UTILITIES_H__
 #define __MATH_UTILITIES_H__
 
+#include "MathDefs.h"
+#include "ThreadUtils.h"
 #include <Eigen/Core>
 #include <iostream>
 #include <algorithm>
-#include "ThreadUtils.h"
-#include "MathDefs.h"
 
 template< int DIM >
 class TwoDScene;
 
 #define PI 3.1415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679821480865132823066470938446095505822317253594081284811174502841027019385211055596446229489549303819644288109756659334461284756482337867831652712019091456485669234603486104543266482133936072602491412737245870066063155881748815209209628292540917153643678925903600113305305488204665213841469519415116094330572703657595919530921861173819326117931051185480744623799627495673518857527248912279381830119491298336733624406566430860213949463952247371907021798609437027705392171762931767523846748184676694051320005681271452635608277857713427577896091736371787214684409012249534301465495853710507922796892589235420199561121290219608640344181598136297747713099605187072113499999983729780499510597317328160963185950244594553469083026425223082533446850352619311881710100031378387528865875332083814206171776691473035982534904287554687311595628638823537875937519577818577805321712268066130019278766111959092164201989
 
-
 #ifndef M_PI
-const double M_PI = PI;
+#define M_PI PI
 #endif
 
 #ifdef WIN32
@@ -67,6 +25,24 @@ using std::min;
 using std::max;
 using std::swap;
 
+const double eps = 1e-14;
+
+
+inline bool isSmall(scalar n)
+{
+	return fabs(n) < eps; // std::numeric_limits<scalar>::epsilon();
+}
+
+
+inline bool inZeroOne(scalar x)
+{
+	return (x > -eps) && (x < 1 + eps);
+}
+
+int solveSquareEquation(Vector2s& x, scalar a, scalar b); // solve square equation x^2 + a*x + b = 0
+int solveCubicEquation(Vector3s& x, scalar a, scalar b, scalar c); // solve cubic equation x^3 + a*x^2 + b*x + c = 0
+
+bool lineLineIntersect(const Vector3s& p1, const Vector3s& p2, const Vector3s& p3, const Vector3s& p4, scalar& mua, scalar& mub);
 
 namespace mathutils
 {
@@ -2632,24 +2608,6 @@ namespace mathutils
     n = closest-x1;
   }
   
-  inline void grad_pointline_dist_fixed(const VectorXs& x0, const VectorXs& x1, 
-	  const VectorXs& x2, const VectorXs& x3, const scalar& alpha_0, const scalar& alpha_1, 
-	  VectorXs& grad)
-  {
-	const int DIM = x0.size();
-
-	VectorXs cur = x0 + alpha_0 * (x1 - x0);
-	VectorXs closest = x2 + alpha_1 * (x3 - x2);
-	VectorXs n = closest - cur;
-    
-    scalar d = n.norm();
-	VectorXs nhat = n / d;
-    grad.segment(0, DIM) = -(1. - alpha_0) * nhat.segment(0, DIM);
-    grad.segment(DIM, DIM) = -alpha_0 * nhat.segment(0, DIM);
-    grad.segment(DIM * 2, DIM) = (1. - alpha_1) * nhat.segment(0, DIM);
-    grad.segment(DIM * 3, DIM) = alpha_1 * nhat.segment(0, DIM);
-  }
-  
   template<typename T, int DIM>
   inline void grad_pointline_dist_fixed_constant(const Eigen::Matrix<T, DIM, 1>& x1, const Eigen::Matrix<T, DIM, 1>& x2, const Eigen::Matrix<T, DIM, 1>& x3, const scalar& alpha, const scalar& K, Eigen::Matrix<T, Eigen::Dynamic, 1>& grad)
   {
@@ -3905,15 +3863,6 @@ namespace mathutils
     return 0.5 * (a0 + a1);
   }
   
-  inline void compute_radius_vector( const VectorXs& radii, const std::vector< int >& particles, VectorXs& rad_vec)
-  {
-    int np = rad_vec.size();
-    for(int i = 0; i < np; ++i)
-    {
-      rad_vec(i) = radii(particles[i]);
-    }
-  }
-  
   template<typename T, typename S>
   inline void compute_vertex_val(const T& u_k, const S& W_fv, T& u_vert)
   {
@@ -3945,87 +3894,6 @@ namespace mathutils
     }
   }
   
-  inline void compute_bracket_matrix( const VectorXs& vertex_value, SparseXs& Gv )
-  {
-    int np = vertex_value.size();
-    
-    TripletXs tri;
-    
-    tri.reserve(np);
-    
-    for(int i = 0; i < np; ++i)
-    {
-      tri.push_back(Triplets(i, i, vertex_value[i]));
-    }
-    
-    Gv.setFromTriplets(tri.begin(), tri.end());
-  }
-  
-  inline void compute_flat_bracket_matrix( const VectorXs& vertex_value, SparseXs& Gv )
-  {
-    int np = vertex_value.size();
-    
-    TripletXs tri;
-    
-    tri.reserve(np);
-    
-    for(int i = 0; i < np; ++i)
-    {
-      tri.push_back(Triplets(0, i, vertex_value[i]));
-    }
-    
-    Gv.setFromTriplets(tri.begin(), tri.end());
-  }
-  
-  inline void compute_bracket_matrix( const VectorXs& vertex_value, SparseXs& Gf, int dim )
-  {
-    int ne = vertex_value.size();
-    
-    TripletXs tri;
-    
-    tri.reserve(ne * dim);
-    
-    for(int i = 0; i < ne; ++i)
-    {
-      for(int r = 0; r < dim; ++r)
-        tri.push_back(Triplets(i * dim + r, i * dim + r, vertex_value[i]));
-    }
-    
-    Gf.setFromTriplets(tri.begin(), tri.end());
-  }
-  
-  
-  inline void compute_inv_bracket_matrix( const VectorXs& vertex_value, SparseXs& iGv, scalar min_val = -1e+20 )
-  {
-    int np = vertex_value.size();
-    
-    TripletXs tri;
-    
-    tri.resize(np);
-    
-    for(int i = 0; i < np; ++i)
-    {
-      tri[i] = Triplets(i, i, 1.0 / std::max(min_val, vertex_value[i]));
-    }
-    
-    iGv.setFromTriplets(tri.begin(), tri.end());
-  }
-  
-  inline void parallel_compute_inv_bracket_matrix( const VectorXs& vertex_value, SparseXs& iGv, scalar min_val = -1e+20 )
-  {
-    int np = vertex_value.size();
-    
-    TripletXs tri;
-    
-    tri.resize(np);
-    
-    threadutils::thread_pool::ParallelFor(0, np, [&] (int i) {
-      tri[i] = Triplets(i, i, 1.0 / std::max(min_val, vertex_value[i]));
-    });
-
-    iGv.setFromTriplets(tri.begin(), tri.end());
-  }
-  
   
   inline void compute_vertex_divergence_matrix( const SparseXs& iGv, const SparseXs& Gf, const SparseXs& grad, SparseXs& div )
   {
@@ -4037,58 +3905,6 @@ namespace mathutils
     L = div * grad;
   }
   
-  inline void compute_edge_to_vertex_matrix( const std::vector<std::pair<int, int> >& edges, const VectorXs& vertex_area, const VectorXs& edge_area, SparseXs& W )
-  {
-    // W.resize(vertex_area.size(), edge_area.size());
-    TripletXs tri;
-    
-    int ne = edge_area.size();
-    for(int j = 0; j < ne; ++j)
-    {
-      const scalar& A_Fj = edge_area[j];
-      const int& i0 = edges[j].first;
-      const int& i1 = edges[j].second;
-      const scalar& A_Vi0 = vertex_area[i0];
-      const scalar& A_Vi1 = vertex_area[i1];
-      
-      tri.push_back(Triplets(i0, j, A_Fj / A_Vi0 * 0.5));
-      tri.push_back(Triplets(i1, j, A_Fj / A_Vi1 * 0.5));
-    }
-    
-    W.setFromTriplets(tri.begin(), tri.end());
-  }
-  
-  inline void compute_edge_to_vertex_matrix( const std::vector<std::pair<int, int> >& edges, const VectorXs& vertex_area, const VectorXs& edge_area, const VectorXi& ppp_count, SparseXs& W )
-  {
-    // W.resize(vertex_area.size(), edge_area.size());
-    TripletXs tri;
-    
-    int ne = edge_area.size();
-    for(int j = 0; j < ne; ++j)
-    {
-      const scalar& A_Fj = edge_area[j];
-      const int& i0 = edges[j].first;
-      const int& i1 = edges[j].second;
-      const scalar& A_Vi0 = vertex_area[i0];
-      const scalar& A_Vi1 = vertex_area[i1];
-      const int& N_Vi0 = ppp_count[i0];
-      const int& N_Vi1 = ppp_count[i1];
-      
-      if(N_Vi0 > 0) tri.push_back(Triplets(i0, j, A_Fj / (A_Vi0 * (scalar) N_Vi0)));
-      if(N_Vi1 > 0) tri.push_back(Triplets(i1, j, A_Fj / (A_Vi1 * (scalar) N_Vi1)));
-    }
-    
-    W.setFromTriplets(tri.begin(), tri.end());
-  }
-  
-  inline void inverse_diagonal( MatrixXs& A )
-  {
-    int np = A.rows();
-    for(int i = 0; i < np; ++i)
-    {
-      A(i, i) = 1.0 / A(i, i);
-    }
-  }
   
   template<int DIM>
   inline void compute_mass_vector_solid( const VectorXs& rho_hair,
@@ -4119,26 +3935,7 @@ namespace mathutils
     pressure = -sigma * (L * eta);
   }
   
-  
-  inline void compute_D_matrix(const SparseXs& W_fv, const VectorXs& u_next, const SparseXs& gradF, const SparseXs& dir_f_exp, SparseXs& D)
-  {
-    SparseXs u_mat(u_next.size(), u_next.size());
-    
-    compute_bracket_matrix(u_next, u_mat);
-    D = W_fv * u_mat * dir_f_exp * gradF;
-  }
-  
-  
-  inline void compute_A_matrix(const SparseXs& D, const SparseXs& divV, const VectorXs& u_next, const SparseXs& dir_f_exp, const SparseXs& L, const scalar& mu, SparseXs& A)
-  {
-    VectorXs divu = divV * dir_f_exp.transpose() * u_next;
-    
-    SparseXs divu_mat(D.rows(), D.cols());
-    
-    compute_bracket_matrix(divu, divu_mat);
-    
-    A = D + divu_mat - mu * L;
-  }
+
 
   template<int DIM>
   inline void compute_mass_vector_totalliquid(

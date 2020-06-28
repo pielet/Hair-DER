@@ -43,9 +43,13 @@
 #define __MATH_DEFS_H__
 
 #ifdef WIN32
-#define _USE_MATH_DEFINES
+	#define _USE_MATH_DEFINES
 #endif
 #include <cmath>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846264338
+#endif
 
 #include <Eigen/Core>
 #include <Eigen/StdVector>
@@ -67,7 +71,8 @@ struct int_scalar {
 };
 
 typedef Eigen::Affine3d Affine3s;
-typedef Eigen::Quaterniond Quaternions;
+typedef Eigen::Quaternion<scalar> Quaternions;
+typedef std::vector<Quaternions, Eigen::aligned_allocator<Quaternions> > QuaArray;
 
 typedef Eigen::Matrix<scalar, 2, 1> Vector2s;
 typedef Eigen::Matrix<float, 2, 1> Vector2f;

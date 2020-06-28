@@ -41,7 +41,7 @@
 
 #include "TimingUtilities.h"
 
-#ifdef WIN32
+#if defined _WIN64 || defined WIN32
 #include < windows.h >
 #if defined(_MSC_VER) || defined(_MSC_EXTENSIONS)
 #define DELTA_EPOCH_IN_MICROSECS  11644473600000000Ui64
@@ -81,8 +81,13 @@ int gettimeofday(struct timeval *tv, struct timezone *tz)
 			tzflag++;
 		}
 
-		tz->tz_minuteswest = _timezone / 60;
-		tz->tz_dsttime = _daylight;
+		long seconds = 0;
+		int hours = 0;
+		_get_timezone(&seconds);
+		_get_daylight(&hours);
+
+		tz->tz_minuteswest = seconds / 60;
+		tz->tz_dsttime = hours;
 	}
 
 	return 0;

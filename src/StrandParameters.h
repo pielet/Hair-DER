@@ -42,10 +42,10 @@
 #ifndef __STRAND_PARAMS_H__
 #define __STRAND_PARAMS_H__
 
-#include "Definitions.h"
-#include "Dependencies/BendingProducts.h"
-#include "Dependencies/ElasticStrandUtils.h"
-#include <math.h> // exp 
+#include "StrandMathDef.h"
+#include "BendingProducts.h"
+#include "ElasticStrandUtils.h"
+#include <cmath> // exp 
 
 struct StrandEquilibriumParameters
 {
@@ -176,7 +176,7 @@ struct StrandParameters
       // Force coefficients are computed without the varying radius multiplier;
       // correct interpolation will be applied when they are accessed
       m_viscousKs = M_PI * m_radius * m_radius * 3 * m_viscosity / dt;
-      m_viscousKt = M_PI_4 * m_radius * m_radius * ( m_radius * m_radius + m_radius * m_radius ) * m_viscosity / dt;
+      m_viscousKt = M_PI / 4 * m_radius * m_radius * ( m_radius * m_radius + m_radius * m_radius ) * m_viscosity / dt;
       m_viscousBendingCoefficientBase = 3 * m_viscosity / dt;
   }
 

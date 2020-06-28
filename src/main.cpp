@@ -1,4 +1,4 @@
-// #define OUTPUT_PNG
+﻿// #define OUTPUT_PNG
 
 #include <iostream>
 
@@ -82,14 +82,14 @@ int main(){
 	TwWindowSize(width, height);
 
 	/********************** Initialize scene ************************/
-    Simulator sim(modelPath, transPath);
+    Simulator* sim = new Simulator(modelPath, transPath);
 
-	Camera* camera = sim.getCamera();
+	Camera* camera = sim->getCamera();
 	glfwSetWindowUserPointer(window, camera);
 
-	int numParticle = sim.getNumParticle();
-	int numStrand = sim.getNumStrand();
-	const std::vector<int>& startIndex = sim.getStartIndex();
+	int numParticle = sim->getNumParticle();
+	int numStrand = sim->getNumStrand();
+	const std::vector<int>& startIndex = sim->getStartIndex();
 
 	std::cout << "Strands: " << numStrand
               << "\nTotal particle: " << numParticle << std::endl;
@@ -128,7 +128,7 @@ int main(){
 	Matrix4s view = camera->getLookAt();
 	Matrix4s MVP = projection * view;
 	
-	GLfloat* g_Dof_buffer_data = sim.getBuffer();
+	GLfloat* g_Dof_buffer_data = sim->getBuffer();
 	GLfloat* g_color_buffer_data = new GLfloat[3 * numParticle];
 	for (int i = 0; i < numStrand; ++i) {
 		Vector3f color = Vector3f::Random();
@@ -139,13 +139,13 @@ int main(){
 		}
 	}
 	// grid data ...
-	float interval = 0.2;
+	float interval = 0.2f;
 	int numGrid = 10;
 	float range = interval * numGrid;
-	GLfloat g_grid_data[2 * (numGrid * 2 + 1) * 12 + 12];
+	GLfloat* g_grid_data = new GLfloat[2 * (numGrid * 2 + 1) * 12 + 12];
 	Vector3f color;
 	for (int i = 0; i < 2 * numGrid + 1; ++i) {
-		if (i == numGrid) color = Vector3f(.6, .3, .3);
+		if (i == numGrid) color = Vector3f(.6f, .3f, .3f);
 		else color = Vector3f(.25, .25, .25);
 		float base = i * interval - range;
 		int idx = 12 * i;
@@ -167,10 +167,10 @@ int main(){
 		}
 	}
 	int idx = 2 * (numGrid * 2 + 1) * 12;
-	g_grid_data[idx] =g_grid_data[idx + 2] = g_grid_data[idx + 6] = g_grid_data[idx + 8] = 0;
+	g_grid_data[idx] = g_grid_data[idx + 2] = g_grid_data[idx + 6] = g_grid_data[idx + 8] = 0;
 	g_grid_data[idx + 1] = -range;
 	g_grid_data[idx + 7] = range;
-	color = Vector3f(.6, .3, .3);
+	color = Vector3f(.6f, .3f, .3f);
 	for (int j = 3; j < 6; ++j) {
 		g_grid_data[idx + j] = g_grid_data[idx + 6 + j] = color(j - 3);
 	}
@@ -188,13 +188,15 @@ int main(){
 	GLuint gridbuffer;
 	glGenBuffers(1, &gridbuffer);
 	glBindBuffer(GL_ARRAY_BUFFER, gridbuffer);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(g_grid_data), g_grid_data, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * (2 * (numGrid * 2 + 1) * 12 + 12), g_grid_data, GL_STATIC_DRAW);
 
-	uint8_t pixel[height * width * 3];
+	uint8_t* pixel = new uint8_t[height * width * 3];
 
 	/************************* Main loop ***************************/
-	while ( !sim.isQuit() && glfwWindowShouldClose(window) == 0 ) {
+	while ( !(sim->isQuit()) && glfwWindowShouldClose(window) == 0 ) {
  		// Clear the screen
+		// glClearColor(1.0f, 1.0f, 1.0f, 0.0f);
+		glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		glUseProgram(programID);
@@ -211,7 +213,7 @@ int main(){
 		glVertexAttribPointer(
 			0,                  // attribute. No particular reason for 0, but must match the layout in the shader.
 			3,                  // size
-			GL_FLOAT,          // type
+			GL_FLOAT,           // type
 			GL_FALSE,           // normalized?
 			0,                  // stride
 			(void*)0            // array buffer offset
@@ -236,10 +238,10 @@ int main(){
 		glDisableVertexAttribArray(1);
 
 #ifdef OUTPUT_PNG
-		if (sim.shouldSave()) {
+		if (sim->shouldSave()) {
 			glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, (GLvoid*)pixel);
-			savePNG(pixel, sim.getStep());
-			sim.shouldSave() = false;
+			savePNG(pixel, sim->getStep());
+			sim->shouldSave() = false;
 		}
 #endif
 		TwDraw(); 
@@ -250,6 +252,8 @@ int main(){
 	};
 
 	/************************** clear up and exit *************************/
+	delete sim;
+	delete [] pixel;
 	// Cleanup VBO and shader
 	glDeleteBuffers(1, &vertexbuffer);
 	glDeleteBuffers(1, &colorbuffer);
@@ -277,4 +281,6 @@ bool savePNG(const uint8_t* pixel, int step) {
 	std::stringstream ss;
 	ss << outputDir << step << ".PNG";
 	image.write(ss.str());
+
+	return true;
 }

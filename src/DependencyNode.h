@@ -42,7 +42,7 @@
 #ifndef DEPENDENCYNODE_H_
 #define DEPENDENCYNODE_H_
 
-#include "../Definitions.h"
+#include "StrandMathDef.h"
 #include <list>
 
 //#define VERBOSE_DEPENDENCY_NODE

@@ -52,7 +52,7 @@ bool Force::isInterHair() const
   return false;
 }
 
-void Force::storeLambda(const VectorXs& lambda, const VectorXs& lambda_v)
+void Force::storeLambda(const VectorXs& lambda)
 {}
 
 void Force::postStepScene(const scalar& dt )

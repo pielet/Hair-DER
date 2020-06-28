@@ -39,43 +39,43 @@
 // OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
 // DAMAGE.
 
-#ifndef TWISTINGFORCE_H_
-#define TWISTINGFORCE_H_
+#ifndef STRETCHINGFORCE_H_
+#define STRETCHINGFORCE_H_
 
 #include "ViscousOrNotViscous.h"
-#include "../StrandForce.h"
+#include "StrandForce.h"
 
 template<typename ViscousT = NonViscous>
-class TwistingForce
+class StretchingForce
 {
 public:
-    TwistingForce()
+    StretchingForce()
     {}
-    
-    virtual ~TwistingForce()
+
+    virtual ~StretchingForce()
     {}
 
 public:
-    static const IndexType s_first = 1; // The first index on which this force can apply
+    static const IndexType s_first = 0; // The first index on which this force can apply
     static const IndexType s_last = 1; // The last index (counting from the end)
 
-    typedef Eigen::Matrix<scalar, 11, 1> LocalForceType;
-    typedef Eigen::Matrix<scalar, 11, 11> LocalJacobianType;
+    typedef Eigen::Matrix<scalar, 6, 1> LocalForceType;
+    typedef Eigen::Matrix<scalar, 6, 6> LocalJacobianType;
+    typedef VecX ForceVectorType;
 
     static std::string getName()
     {
-        return ViscousT::getName() + "twisting";
+        return ViscousT::getName() + "stretching";
     }
 
     static scalar localEnergy( const StrandForce& strand, const IndexType vtx );
 
-    static void computeLocal( LocalForceType& localF, const StrandForce& strand,
-            const IndexType vtx );
+    static void computeLocal( LocalForceType& localF, const StrandForce& strand, const IndexType vtx );
 
     static void computeLocal( LocalJacobianType& localJ, const StrandForce& strand,
             const IndexType vtx );
 
-    static void addInPosition( VecX& globalForce, const IndexType vtx,
+    static void addInPosition( ForceVectorType& globalForce, const IndexType vtx,
             const LocalForceType& localForce );
 
     static void accumulateCurrentE( scalar& energy, StrandForce& strand );

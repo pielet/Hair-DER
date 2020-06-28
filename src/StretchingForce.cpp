@@ -144,7 +144,7 @@ void StretchingForce<ViscousT>::accumulateIntegrationVars(
         }
 
         if( std::is_same< ViscousT, NonViscous >::value )
-        { // only fill in tildeK once    
+        { // only fill in tildeK once
             Mat3 M = ( Mat3::Identity() - edge * edge.transpose()) / length;
             scalar weight = -lambda[ lambda_start + vtx ];
             

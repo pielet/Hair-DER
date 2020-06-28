@@ -41,7 +41,7 @@
 
 #include "BendingForce.h"
 #include "ViscousOrNotViscous.h"
-#include "../Dependencies/ElasticStrandUtils.h"
+#include "ElasticStrandUtils.h"
 
 template<typename ViscousT>
 scalar BendingForce<ViscousT>::localEnergy( const StrandForce& strand, const IndexType vtx )

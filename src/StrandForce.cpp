@@ -41,12 +41,12 @@
 
 #include "StrandForce.h"
 
-#include "Forces/ForceAccumulator.h"
-#include "Forces/BendingForce.h"
-#include "Forces/StretchingForce.h"
-#include "Forces/TwistingForce.h"
-#include "Forces/ViscousOrNotViscous.h"
-#include "Dependencies/BendingProducts.h"
+#include "ForceAccumulator.h"
+#include "BendingForce.h"
+#include "StretchingForce.h"
+#include "TwistingForce.h"
+#include "ViscousOrNotViscous.h"
+#include "BendingProducts.h"
 
 // To match with rest of FilmFlow framework sign convention
 //  (we compute Forces and Force Jacobians, FilmFlow expects Energy gradients and Hessians)
@@ -57,11 +57,11 @@
 #define TWIST
 #define BEND
 
-StrandForce::StrandForce(  Scene* scene, int globalIndex, int numParticle ) :
+StrandForce::StrandForce( CompliantImplicitEuler* stepper, int globalIndex, int numParticle ) :
         m_globalIndex( globalIndex ),
         m_numParticle( numParticle ),
-        m_strandParams( scene->getStrandParameters() ),
-        m_scene( scene ),
+        m_strandParams( stepper->getStrandParameters() ),
+        m_stepper( stepper ),
         m_requiresExactForceJacobian( true ),
         m_strandEnergyUpdate( 0. ),
         // m_strandForceUpdate( getNumVertices() * 4 - 1 ),
@@ -69,10 +69,10 @@ StrandForce::StrandForce(  Scene* scene, int globalIndex, int numParticle ) :
         m_strandState( NULL ),
         m_startState( NULL )
 {
-    const VecX& restX = m_scene->getX();
+    const VecX& restX = m_stepper->getX();
     VecX initDoFs = VecX::Zero( getNumVertices() * 4 - 1 );
     for( int i = 0; i < getNumVertices(); ++i ){
-        initDoFs.segment<3>( i * 4 ) = restX.segment<3>( m_scene->getDofIndex( m_globalIndex ) + 4 * i );
+        initDoFs.segment<3>( i * 4 ) = restX.segment<3>( m_stepper->getDofFromStrand( m_globalIndex ) + 4 * i );
     }
 	m_strandState = new StrandState( initDoFs, m_strandParams->getBendingMatrixBase() );
     m_startState = new StartState( initDoFs );
@@ -134,7 +134,7 @@ StartState::StartState( const VecX& initDoFs ):
 // x + v (4n-1)
 void StrandForce::updateStartDoFs( const VecX& x_startOfStep )
 {
-    const VecX& currentStrandDoFs = x_startOfStep.segment( m_scene->getDofIndex( m_globalIndex ), getNumVertices() * 4 - 1 );
+    const VecX& currentStrandDoFs = x_startOfStep.segment( m_stepper->getDofFromStrand( m_globalIndex ), getNumVertices() * 4 - 1 );
     m_startState->m_dofs.set( currentStrandDoFs );
 }
 
@@ -255,13 +255,13 @@ void StrandForce::preCompute( const VecX& x, const VecX& v, const VecX& m, const
     /* nothing to do here, updateStartDoFs called separately and otherwise need to update every time we compute (in case nonlinear) */
 }
 
-void StrandForce::computeIntegrationVars( const VectorXs& x, const VectorXs& v, const VectorXs& m,
-                                         VectorXs& lambda, VectorXs& lambda_v,
-                                         TripletXs& J, TripletXs& Jv, TripletXs& Jxv, TripletXs& tildeK,
-                                         TripletXs& stiffness, TripletXs& damping, VectorXs& Phi, VectorXs& Phiv, const scalar& dt)
+void StrandForce::computeIntegrationVars(const VectorXs& x, const VectorXs& v, const VectorXs& m,
+                                         VectorXs& lambda,
+                                         TripletXs& J, TripletXs& tildeK,
+                                         TripletXs& stiffness, VectorXs& Phi, const scalar& dt)
 {
     // update DoFs: 'future' if Nonlinear, these are current if Linear
-    const VecX& futureStrandDoFs = x.segment( m_scene->getDofIndex( m_globalIndex ), getNumVertices() * 4 - 1 );
+    const VecX& futureStrandDoFs = x.segment( m_stepper->getDofFromStrand( m_globalIndex ), getNumVertices() * 4 - 1 );
     if( futureStrandDoFs != m_strandState->m_dofs.get() ){
         m_strandState->m_dofs.set( futureStrandDoFs );
     }
@@ -280,7 +280,7 @@ void StrandForce::computeIntegrationVars( const VectorXs& x, const VectorXs& v, 
         }
     }
 
-    const unsigned global_start_dof = m_scene->getDofIndex( m_globalIndex );
+    const unsigned global_start_dof = m_stepper->getDofFromStrand( m_globalIndex );
 
     unsigned poffset = 0;
     unsigned joffset = 0;
@@ -415,7 +415,7 @@ int StrandForce::numTildeK()
 
 bool StrandForce::isParallelized()
 {
-    return false; // TODO, could PARALLELIZE each force calls
+     return false; // TODO, could PARALLELIZE each force calls
 }
 
 bool StrandForce::isPrecomputationParallelized()
@@ -471,7 +471,7 @@ int StrandForce::numConstraintViscous()
     return numConstraintViscous;
 }
 
-void StrandForce::storeLambda( const VectorXs& lambda, const VectorXs& lambda_v )
+void StrandForce::storeLambda( const VectorXs& lambda )
 {
     int ncnv = numConstraintNonViscous();
     m_lambda = lambda.segment( m_internal_index_pos, ncnv );
@@ -483,22 +483,22 @@ void StrandForce::storeLambda( const VectorXs& lambda, const VectorXs& lambda_v 
 
 void StrandForce::getAffectedVars( int colidx, std::unordered_set<int>& vars )
 {
-    int ip = m_scene->getVertFromDof( colidx );
+    int ip = m_stepper->getVertFromDof( colidx );
 
-    if (ip >= m_scene->getParticleIndex( m_globalIndex ) && ip < m_scene->getParticleIndex( m_globalIndex + 1 )) {
-        if (m_scene->isTip( ip )) {
-            for( int r = 0; r < 3; ++r ) vars.insert( m_scene->getDof( ip ) + r );
+    if (ip >= m_stepper->getStartIndex( m_globalIndex ) && ip < m_stepper->getStartIndex( m_globalIndex + 1 )) {
+        if (m_stepper->isTip( ip )) {
+            for( int r = 0; r < 3; ++r ) vars.insert( m_stepper->getDof( ip ) + r );
         }
         else{
-            for( int r = 0; r < 4; ++r ) vars.insert( m_scene->getDof( ip ) + r );
+            for( int r = 0; r < 4; ++r ) vars.insert( m_stepper->getDof( ip ) + r );
         }
 
         // include previous and next vertices affected by this vert's stretch/bend/twist
-        if( ip != m_scene->getParticleIndex( m_globalIndex ) ){
-            for( int r = 0; r < 4; ++r ) vars.insert( m_scene->getDof( ip - 1 ) + r );
+        if( ip != m_stepper->getStartIndex( m_globalIndex ) ){
+            for( int r = 0; r < 4; ++r ) vars.insert( m_stepper->getDof( ip - 1 ) + r );
         }
-        if( ip != m_scene->getParticleIndex( m_globalIndex + 1 ) - 1 ){
-            for( int r = 0; r < 3; ++r ) vars.insert( m_scene->getDof( ip + 1 ) + r );
+        if( ip != m_stepper->getStartIndex( m_globalIndex + 1 ) - 1 ){
+            for( int r = 0; r < 3; ++r ) vars.insert( m_stepper->getDof( ip + 1 ) + r );
         }
     }
 }
@@ -506,23 +506,23 @@ void StrandForce::getAffectedVars( int colidx, std::unordered_set<int>& vars )
 /*
 void StrandForce::getLocalAffectedVars( int colidx, std::vector< std::pair<int,int> >& vars )
 { // local, global
-    int ip = m_scene->getVertFromDof( colidx );
+    int ip = m_stepper->getVertFromDof( colidx );
     for( int v = 0; v < getNumVertices(); ++v ){
         if( m_verts[v] == ip )
         {
-            if( m_scene->isTip( ip ) ){
-                for( int r = 0; r < 3; ++r ) vars.push_back( std::pair<int,int>( 4 * v + r, m_scene->getDof( ip ) + r ) );
+            if( m_stepper->isTip( ip ) ){
+                for( int r = 0; r < 3; ++r ) vars.push_back( std::pair<int,int>( 4 * v + r, m_stepper->getDof( ip ) + r ) );
             }
             else{
-                for( int r = 0; r < 4; ++r ) vars.push_back( std::pair<int,int>( 4 * v + r, m_scene->getDof( ip ) + r ) );
+                for( int r = 0; r < 4; ++r ) vars.push_back( std::pair<int,int>( 4 * v + r, m_stepper->getDof( ip ) + r ) );
             }
 
             // include previous and next vertices affected by this vert's stretch/bend/twist
             if( v != 0 ){
-                for( int r = 0; r < 4; ++r ) vars.push_back( std::pair<int,int>( 4 * (v - 1) + r, m_scene->getDof( m_verts[v - 1] ) + r ) );
+                for( int r = 0; r < 4; ++r ) vars.push_back( std::pair<int,int>( 4 * (v - 1) + r, m_stepper->getDof( m_verts[v - 1] ) + r ) );
             }
             if( v != getNumVertices() - 1 ){
-                for( int r = 0; r < 3; ++r ) vars.push_back( std::pair<int,int>( 4 * (v + 1) + r, m_scene->getDof( m_verts[v + 1] ) + r ) );
+                for( int r = 0; r < 3; ++r ) vars.push_back( std::pair<int,int>( 4 * (v + 1) + r, m_stepper->getDof( m_verts[v + 1] ) + r ) );
             }
             break;
         }
@@ -536,8 +536,8 @@ int StrandForce::getAffectedHair()
 
 bool StrandForce::isContained( int pidx )
 {
-    int ip = m_scene->getVertFromDof( pidx );
-    if (ip >= m_scene->getParticleIndex( m_globalIndex ) && ip < m_scene->getParticleIndex( m_globalIndex + 1))
+    int ip = m_stepper->getVertFromDof( pidx );
+    if (ip >= m_stepper->getStartIndex( m_globalIndex ) && ip < m_stepper->getStartIndex( m_globalIndex + 1))
         return true;
     return false;
 }

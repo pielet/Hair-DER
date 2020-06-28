@@ -2,13 +2,12 @@
 #include <iostream>
 
 Camera::Camera( const Vector3s& init_lookAt, const Vector3s& init_pos, const Vector3s& init_up ) :
-    m_init_lookAt( init_lookAt )
+    m_init_lookAt( init_lookAt ),
+	m_init_forward(init_lookAt - init_pos)
 {
-    Vector3s forward = init_lookAt - init_pos;
-
-    m_init_dist = forward.norm();
-    m_init_right = forward.cross(init_up).normalized();
-    m_init_up = m_init_right.cross(forward).normalized();
+	m_init_dist = m_init_forward.norm();
+	m_init_forward.normalize();
+    m_init_right = m_init_forward.cross(Vector3s(0, 1.0, 0)).normalized();
 
     center();
 }
@@ -27,13 +26,15 @@ void Camera::cursor_position_callback( double xpos, double ypos ) {
         double xoffset = xpos - m_xpos;
         double yoffset = ypos - m_ypos;
 
+		Vector3s up = m_right.cross(m_forward).normalized();
         if (m_is_mouse_middle_down) {   // translation first
-            m_lookAt += m_translation_rate * (-xoffset * m_right + yoffset * m_up);
+            m_lookAt += m_translation_rate * (-xoffset * m_right + yoffset * up);
             m_dirty = true;
         }
         else if (m_is_mouse_right_down) {
-            m_right = Eigen::AngleAxisd( m_rotation_rate * xoffset, m_up ) * m_right;
-            m_up = Eigen::AngleAxisd( m_rotation_rate * yoffset, m_right) * m_up;
+            m_forward = Eigen::AngleAxisd( m_rotation_rate * xoffset, Vector3s(0, 1.0, 0)) * m_forward;
+            m_forward = Eigen::AngleAxisd( m_rotation_rate * yoffset, m_right) * m_forward;
+			m_right = m_forward.cross(Vector3s(0, 1.0, 0)).normalized();
             m_dirty = true;
         }
 
@@ -51,43 +52,12 @@ void Camera::scroll_callback( double yoffset ) {
 
 const Matrix4s& Camera::getLookAt() {
     if (m_dirty) {
-        Vector3s forward = m_up.cross(m_right);
-        forward.normalize();
-        m_camera = lookAt(m_lookAt - m_dist * forward, m_lookAt, m_up );
+        m_camera = lookAt(m_lookAt - m_dist * m_forward, m_lookAt, m_right.cross(m_forward).normalized() );
         m_dirty = false;
     }
     return m_camera;
 }
-/*
-Matrix4s Camera::lookAt( const Vector3s& eye, const Vector3s& lookAt, const Vector3s& up ) {
-    Vector3s f(lookAt - eye);
-    Vector3s r(f.cross(up));
-    Vector3s u(r.cross(f));
-    f.normalize();
-    r.normalize();
-    u.normalize();
 
-    Matrix4s result;
-    result << r(0), r(1), r(2), -r.dot(eye),
-              u(0), u(1), u(2), -u.dot(eye),
-              f(0), f(1), f(2), -f.dot(eye),
-              0,    0,    0,    1;
-    return result;
-}
-
-Matrix4s Camera::perspective(double fovy, double aspect, double zNear, double zFar) {
-    double const tanHalfFovy = tan(fovy / 2);
-
-    Matrix4s result = Matrix4s::Zero();
-    result(0, 0) = 1 / (aspect * tanHalfFovy);
-    result(1, 1) = 1 / (tanHalfFovy);
-    result(2, 2) = -(zFar + zNear) / (zFar - zNear);
-    result(2, 3) = -1.0;
-    result(3, 2) = -(2 * zFar * zNear) / (zFar - zNear);
-
-    return result;
-}
-*/
 
 Matrix4s Camera::lookAt(Vector3s const& eye, Vector3s const& center, Vector3s const& up)
 {
@@ -97,7 +67,6 @@ Matrix4s Camera::lookAt(Vector3s const& eye, Vector3s const& center, Vector3s co
     f.normalize();
     s.normalize();
     u.normalize();
-
 
     Matrix4s  Result = Matrix4s::Identity();
     Result(0, 0) = s.x();
@@ -132,8 +101,8 @@ Matrix4s Camera::perspective(double fovy, double aspect, double zNear, double zF
 void Camera::center() {
     m_dirty = true;
     
-    m_dist = m_init_dist;
-    m_lookAt = m_init_lookAt;
-    m_up = m_init_up;
+	m_dist = m_init_dist;
+	m_lookAt = m_init_lookAt;
+	m_forward = m_init_forward;
     m_right = m_init_right;
 }

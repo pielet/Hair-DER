@@ -42,19 +42,20 @@
 #ifndef __STRAND_FORCE_H__
 #define __STRAND_FORCE_H__
 
+#include "StrandMathDef.h"
+
 #include <Eigen/Core>
 #include <iostream>
-#include "../Force.h"
+#include "Force.h"
 
-#include "Definitions.h"
-#include "../Scene.h"
-#include "Dependencies/ElasticityParameters.h"
-#include "Dependencies/DegreesOfFreedom.h"
-#include "Dependencies/ReferenceFrames.h"
-#include "Dependencies/MaterialFrames.h"
-#include "Dependencies/Kappas.h"
-#include "Dependencies/Twists.h"
-#include "Dependencies/BendingProducts.h"
+#include "CompliantImplicitEuler.h"
+#include "ElasticityParameters.h"
+#include "DegreesOfFreedom.h"
+#include "ReferenceFrames.h"
+#include "MaterialFrames.h"
+#include "Kappas.h"
+#include "Twists.h"
+#include "BendingProducts.h"
 #include "StrandParameters.h"
 
 struct StrandState
@@ -83,7 +84,7 @@ struct StrandState
 };
 
 struct StartState
-{ // used for Viscous updates that depend of start of step state
+{	// used for Viscous updates that depend of start of step state
 	StartState( const VecX& initDofs );
 
 	DOFs m_dofs;
@@ -105,14 +106,14 @@ class StrandForce : public Force
 {
 public:
 
-	StrandForce( Scene* scene, int globalIndex, int numParticle );
+	StrandForce( CompliantImplicitEuler* stepper, int globalIndex, int numParticle );
 
 	virtual ~StrandForce();
 		
-	virtual void computeIntegrationVars( const VectorXs& x, const VectorXs& v, const VectorXs& m,
-																			VectorXs& lambda, VectorXs& lambda_v,
-																			TripletXs& J, TripletXs& Jv, TripletXs& Jxv, TripletXs& tildeK,
-																			TripletXs& stiffness, TripletXs& damping, VectorXs& Phi, VectorXs& Phiv, const scalar& dt);
+	virtual void computeIntegrationVars(const VectorXs& x, const VectorXs& v, const VectorXs& m,
+											VectorXs& lambda,
+											TripletXs& J, TripletXs& tildeK,
+											TripletXs& stiffness, VectorXs& Phi, const scalar& dt);
 	
 	virtual int numConstraintPos();
 	
@@ -130,7 +131,7 @@ public:
 	
 	virtual bool isPrecomputationParallelized();
 	
-	virtual void storeLambda(const VectorXs& lambda, const VectorXs& lambda_v);
+	virtual void storeLambda(const VectorXs& lambda);
 	
 	virtual int getAffectedHair();
 	
@@ -177,7 +178,7 @@ public:
 	int m_numParticle;
 	int m_globalIndex; // Global index amongst the hairs
 	StrandParameters* m_strandParams;
-	Scene* m_scene;
+	CompliantImplicitEuler* m_stepper;
 	bool m_requiresExactForceJacobian;
 
 	// increase memory, reduce re-computation

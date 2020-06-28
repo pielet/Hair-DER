@@ -39,13 +39,15 @@
 #ifndef ELASTICSTRANDUTILS_H_
 #define ELASTICSTRANDUTILS_H_
 
-#include <limits>
-#include <stdexcept>
 #ifdef WIN32
 #define _USE_MATH_DEFINES
 #endif
-#include <math.h>
-#include "../Definitions.h"
+#include <cmath>
+
+#include <limits>
+#include <stdexcept>
+
+#include "StrandMathDef.h"
 
 /**
  * \brief Tests if a matrix is symmetric
